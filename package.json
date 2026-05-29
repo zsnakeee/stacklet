@@ -1,0 +1,34 @@
+{
+  "name": "dev-mgr",
+  "version": "0.1.0",
+  "description": "Local dev environment manager for Windows",
+  "main": "dist/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "ts-node src/main/index.ts",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "electron": "^35.0.0",
+    "electron-builder": "^25.0.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.8.0"
+  },
+  "build": {
+    "appId": "com.devmgr.app",
+    "productName": "Dev Manager",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
