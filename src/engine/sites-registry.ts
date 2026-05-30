@@ -97,9 +97,8 @@ export function addRegisteredSite(name: string, root: string): RegisteredSite {
   }
 
   const hostname = siteHostnameFromDirName(siteName);
-  if (
-    sites.some((s) => siteHostnameFromDirName(s.name) === hostname && s.name !== siteName)
-  ) {
+  const taken = new Set(sites.flatMap((s) => [effectiveHostname(s), ...(s.aliases ?? [])]));
+  if (taken.has(hostname)) {
     throw new Error(`Hostname ${hostname} is already used by another site`);
   }
 
