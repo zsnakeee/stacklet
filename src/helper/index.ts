@@ -1,21 +1,21 @@
-/**
- * Privileged helper client — placeholder.
+﻿/**
+ * Public API surface for the privileged helper subsystem.
  *
- * This module will provide the main process (engine) with a typed client
- * for communicating with the out-of-process privileged helper over a
- * named pipe (Windows) / XPC socket (macOS).
- *
- * The helper performs only elevated operations:
- *   - Editing the system hosts file
- *   - Binding to low ports (80/443)
- *   - Installing/removing trusted root CA certificates
- *   - Configuring local DNS (Windows: per-adapter, macOS: /etc/resolver)
- *
- * The engine never runs as SYSTEM/root; all privilege is isolated here.
- *
- * This file is a placeholder; implementation begins in Phase 0 spike.
+ * Engine code imports from this module; it never imports server.ts directly
+ * (the server runs in a separate elevated process).
  */
 
-export class HelperClient {
-  // TODO: implement IPC transport and method stubs in Phase 0
-}
+export { HelperClient } from './client';
+export {
+  launchHelper,
+  isElevated,
+  getHelperLogPath,
+  resolveHelperRuntime,
+  resolveServerPath,
+} from './elevate';
+export { stopExistingHelper, getHelperPidPath } from './helper-process';
+export { listenOnPipe, probePipe } from './pipe';
+export { hostsAdd, hostsRemove, hostsFileHasAllEntries, hostsSync } from './hosts';
+export { installRootCert } from './cert';
+export type { HelperRequest, HelperResponse, AllowedOp } from './protocol';
+export { ALLOWED_OPS, HELPER_PROTOCOL_VERSION, PIPE_PATH, getTokenPath } from './protocol';

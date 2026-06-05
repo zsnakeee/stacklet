@@ -1,15 +1,7 @@
-/**
- * Engine — orchestrator placeholder.
- *
- * Responsible for:
- *   - Managing site configuration (source of truth)
- *   - Spawning and supervising service processes (Apache/Nginx, PHP-FPM, MySQL)
- *   - Generating derived config artifacts (vhosts, PHP-FPM pools, TLS certs)
- *   - Exposing the LogService over IPC
- *
- * This file is a placeholder; implementation begins in Phase 1.
- */
-
-export class Orchestrator {
-  // TODO: implement in Phase 1
-}
+﻿export { HelperService } from './helper-service';
+export { LogService } from './logs';
+export type { LogSource } from './logs';
+export { Orchestrator } from './orchestrator';
+export { discoverSites, detectFramework } from './sites';
+export { collectTlsSanNames, ensureDevCerts } from './tls';
+export type { DevCerts } from './tls';
