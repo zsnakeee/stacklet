@@ -10,6 +10,20 @@
 
 Stacklet is a Windows desktop app for Laravel developers: nginx, PHP, MySQL, Redis, PostgreSQL, `.test` sites, trusted local HTTPS, and PATH sync — Herd/Laragon-style without manual config.
 
+## Screenshots
+
+**Dashboard**
+
+<img src="art/dashboard.png" alt="Stacklet dashboard" width="920" />
+
+**Sites**
+
+<img src="art/sites.png" alt="Stacklet sites" width="920" />
+
+**Services**
+
+<img src="art/services.png" alt="Stacklet services" width="920" />
+
 ## Status
 
 - **Windows only** (for now)
