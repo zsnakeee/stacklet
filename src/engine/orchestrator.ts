@@ -32,6 +32,7 @@ import type {
   NginxOptions,
   PhpMyAdminOptions,
   Site,
+  WebServer,
 } from '../config/types';
 import { HelperService } from './helper-service';
 import { LogService } from './logs/log-service';
@@ -422,7 +423,11 @@ export class Orchestrator {
       }
     }
 
-    await this.restartNginxIfRunning();
+    if (this.config.general.web_server === 'apache') {
+      await this.restartApacheIfRunning();
+    } else {
+      await this.restartNginxIfRunning();
+    }
   }
 
   /** Reload alone can leave old workers (e.g. 1m body limit); full restart applies vhost changes. */
@@ -433,6 +438,50 @@ export class Orchestrator {
     } catch {
       // config is on disk for the next manual start
     }
+  }
+
+  private async restartApacheIfRunning(): Promise<void> {
+    if (this.services.apache.status.state !== 'running') return;
+    try {
+      await this.stopService('apache');
+      await this.startService('apache');
+    } catch {
+      // config is on disk for the next manual start
+    }
+  }
+
+  /** Switch the active web server, stopping the old one and starting the new. */
+  async setWebServer(server: WebServer): Promise<DevConfig> {
+    if (server !== 'nginx' && server !== 'apache') {
+      throw new Error(`Unknown web server: ${server}`);
+    }
+    const previous = this.config.general.web_server;
+    if (previous === server) return this.config;
+
+    const oldRuntime = previous === 'apache' ? 'apache' : 'nginx';
+    const newRuntime = server === 'apache' ? 'apache' : 'nginx';
+    const wasRunning = this.getService(oldRuntime).status.state === 'running';
+
+    if (wasRunning) {
+      try {
+        await this.stopService(oldRuntime);
+      } catch {
+        // ignore
+      }
+    }
+
+    this.config.general.web_server = server;
+    saveConfig(this.config);
+    await this.apply();
+
+    if (wasRunning && this.getService(newRuntime).isConfigured) {
+      try {
+        await this.startService(newRuntime);
+      } catch {
+        // surfaced on next refresh
+      }
+    }
+    return this.config;
   }
 
   private async applyPhpMaintenance(): Promise<void> {

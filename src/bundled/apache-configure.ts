@@ -79,6 +79,8 @@ export function configureApacheInstall(installRoot: string): void {
   ensureDir(path.join(getLogsDir(), 'apache'));
   const includeBlock = [
     DEVMGR_BEGIN,
+    // httpd.conf already has "Listen 80"; add 443 for the SSL vhosts.
+    'Listen 443',
     `Include "${apacheSitesConfPath().replace(/\\/g, '/')}"`,
     DEVMGR_END,
   ].join('\n');

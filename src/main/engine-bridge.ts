@@ -108,6 +108,10 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     return getEngine().status();
   });
   ipcMain.handle('devmgr:reloadAll', async () => getEngine().reloadAll());
+  ipcMain.handle('devmgr:setWebServer', async (_e, server: 'nginx' | 'apache') => {
+    await getEngine().setWebServer(server);
+    return getEngine().status();
+  });
   ipcMain.handle('devmgr:hosts:status', () => getEngine().getHostsSyncStatus());
   ipcMain.handle('devmgr:hosts:sync', async () => {
     const result = await getEngine().syncHostsIfNeeded();

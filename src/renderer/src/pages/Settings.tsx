@@ -391,11 +391,36 @@ export function Settings() {
         </div>
       </Section>
 
-      <Section title="General">
-        <dl className="grid grid-cols-[10rem_1fr] gap-3 text-sm">
-          <dt className="text-text-muted">Web server</dt>
-          <dd className="text-foreground">{config?.general?.web_server ?? 'nginx'}</dd>
-        </dl>
+      <Section title="Web server">
+        <Hint>
+          Choose which web server serves your sites. Install Apache from Services first; switching
+          stops one server and starts the other (PHP is shared via FastCGI).
+        </Hint>
+        <div className="mt-3 flex gap-2">
+          {(['nginx', 'apache'] as const).map((ws) => {
+            const active = (config?.general?.web_server ?? 'nginx') === ws;
+            return (
+              <Button
+                key={ws}
+                variant={active ? 'primary' : 'ghost'}
+                onClick={() =>
+                  !active &&
+                  runAction({
+                    key: `web-server-${ws}`,
+                    label: `Switch to ${ws}`,
+                    global: true,
+                    run: async () => {
+                      await devmgr.setWebServer(ws);
+                      await refresh();
+                    },
+                  })
+                }
+              >
+                {ws === 'nginx' ? 'Nginx' : 'Apache'}
+              </Button>
+            );
+          })}
+        </div>
       </Section>
     </div>
   );

@@ -3,6 +3,8 @@ import path from 'path';
 import type { DevConfig, Site } from '../../config/types';
 import { ensureDir, getGeneratedDir, getLogsDir } from '../../shared/paths';
 import { renderNginxVhosts } from './nginx';
+import { renderApacheVhosts } from './apache';
+import { apacheGeneratedDir, apacheSitesConfPath } from '../../bundled/apache-configure';
 
 export function renderAll(config: DevConfig, sites: Site[]): void {
   for (const site of sites) {
@@ -19,4 +21,8 @@ export function renderAll(config: DevConfig, sites: Site[]): void {
     renderNginxVhosts(config, sites),
     'utf8',
   );
+
+  // Apache vhosts (used when web_server === 'apache'); harmless to always emit.
+  ensureDir(apacheGeneratedDir());
+  fs.writeFileSync(apacheSitesConfPath(), renderApacheVhosts(config, sites), 'utf8');
 }

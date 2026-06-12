@@ -20,6 +20,7 @@ import type { InstallProgressPayload } from '@shared/ipc';
 
 const RUNTIME_TO_BUNDLED: Record<string, string> = {
   nginx: 'nginx',
+  apache: 'apache',
   'php-fpm': 'php',
   mysql: 'mysql',
   postgres: 'postgres',

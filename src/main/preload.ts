@@ -10,6 +10,7 @@ const devmgrAPI: DevmgrAPI = {
   sites: () => ipcRenderer.invoke('devmgr:sites'),
   apply: () => ipcRenderer.invoke('devmgr:apply'),
   reloadAll: () => ipcRenderer.invoke('devmgr:reloadAll'),
+  setWebServer: (server) => ipcRenderer.invoke('devmgr:setWebServer', server),
   hosts: {
     status: () => ipcRenderer.invoke('devmgr:hosts:status'),
     sync: () => ipcRenderer.invoke('devmgr:hosts:sync'),

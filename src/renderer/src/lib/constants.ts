@@ -9,6 +9,7 @@ export interface QuickField {
 /** Dashboard runtime rows: bundled service id -> runtime process name. */
 export const RUNTIME_ROWS = [
   { bundledId: 'nginx', runtime: 'nginx' },
+  { bundledId: 'apache', runtime: 'apache' },
   { bundledId: 'php', runtime: 'php-fpm' },
   { bundledId: 'mysql', runtime: 'mysql' },
   { bundledId: 'postgres', runtime: 'postgres' },

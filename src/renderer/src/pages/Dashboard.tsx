@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Badge, IconButton } from '@/components/ui/primitives';
 import { Icon } from '@/components/Icon';
 import Globe from '@/components/globe';
+import GradientText from '@/components/GradientText';
 import { useAction } from '@/lib/action';
 import { badgeForRuntime } from '@/lib/badge';
 import { RUNTIME_ROWS } from '@/lib/constants';
@@ -152,27 +153,47 @@ export function Dashboard() {
     if (bundled?.installed && rowErrors.has(row.bundledId)) errorCount += 1;
   }
 
+  const siteCount = status?.sites?.length ?? 0;
+
   return (
     <div className="flex flex-col gap-5">
-      <div className="pointer-events-none flex justify-center">
-        <Globe
-          width={300}
-          height={260}
-          primaryColor="rgb(45, 212, 170)"
-          neutralColor="rgb(96, 165, 250)"
-          globeColor="rgb(14, 21, 28)"
-          globeOpacity={0.55}
-          atmosphereColor="rgba(45, 212, 170, 0.25)"
-          autoRotateSpeed={0.8}
-          enableZoom={false}
-          className="opacity-90"
-        />
-      </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-        <StatCard value={running} label="Running" highlight />
-        <StatCard value={Math.max(0, installedCount - running)} label="Stopped" />
-        {errorCount > 0 && <StatCard value={errorCount} label="Needs attention" warn />}
-      </div>
+      <section className="grid items-center gap-5 overflow-hidden rounded-2xl border border-border bg-surface/40 p-5 lg:grid-cols-[1fr_300px]">
+        <div className="flex flex-col gap-4">
+          <div>
+            <GradientText
+              className="text-2xl font-bold"
+              colors={['#2dd4aa', '#60a5fa', '#2dd4aa']}
+              animationSpeed={9}
+            >
+              Your local stack
+            </GradientText>
+            <p className="mt-1 text-sm text-text-muted">
+              {running} of {installedCount} services running · {siteCount}{' '}
+              {siteCount === 1 ? 'site' : 'sites'}
+              {errorCount > 0 ? ` · ${errorCount} need attention` : ''}
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-3">
+            <StatCard value={running} label="Running" highlight />
+            <StatCard value={Math.max(0, installedCount - running)} label="Stopped" />
+            <StatCard value={errorCount} label="Attention" warn={errorCount > 0} />
+          </div>
+        </div>
+        <div className="pointer-events-none hidden justify-self-center lg:flex">
+          <Globe
+            width={300}
+            height={260}
+            primaryColor="rgb(45, 212, 170)"
+            neutralColor="rgb(96, 165, 250)"
+            globeColor="rgb(14, 21, 28)"
+            globeOpacity={0.55}
+            atmosphereColor="rgb(45, 212, 170)"
+            autoRotateSpeed={0.8}
+            enableZoom={false}
+            className="opacity-90"
+          />
+        </div>
+      </section>
 
       {status?.warnings && status.warnings.length > 0 && (
         <div className="rounded-xl border border-warning/40 bg-warning/5 p-4">
