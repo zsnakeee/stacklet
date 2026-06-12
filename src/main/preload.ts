@@ -161,6 +161,8 @@ const devmgrAPI: DevmgrAPI = {
     paths: () => ipcRenderer.invoke('devmgr:settings:paths'),
     save: (patch) => ipcRenderer.invoke('devmgr:settings:save', patch),
     openPath: (targetPath) => ipcRenderer.invoke('devmgr:settings:openPath', targetPath),
+    relocateDataDir: (newDir) =>
+      ipcRenderer.invoke('devmgr:settings:relocateDataDir', newDir),
   },
   logs: {
     list: () => ipcRenderer.invoke('devmgr:logs:list'),

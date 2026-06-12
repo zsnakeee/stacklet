@@ -138,6 +138,8 @@ import {
   getDataDir,
   getLogsDir,
   getProjectsDir,
+  migrateLegacyDataDir,
+  setDataDirOverride,
 } from '../shared/paths';
 
 export type AppSettingsPatch = {
@@ -224,6 +226,7 @@ export class Orchestrator {
   }
 
   static createInitialized(): Orchestrator {
+    migrateLegacyDataDir();
     ensureDataLayout();
     initConfig();
     const config = loadConfig();
@@ -240,6 +243,40 @@ export class Orchestrator {
     saveConfig(this.config);
     this.services = new ServiceManager(this.config);
     this.refreshSites();
+  }
+
+  /**
+   * Move the data directory to a new location. Stops services to release file
+   * locks, moves the folder (rename, or copy+delete across volumes), and stores
+   * the override. The app should be restarted afterwards.
+   */
+  async relocateDataDir(newDir: string): Promise<{ ok: boolean; message: string; path: string }> {
+    const target = path.resolve(newDir);
+    const current = path.resolve(getDataDir());
+    if (current === target) {
+      return { ok: true, message: 'Data directory is already there.', path: target };
+    }
+    if (fs.existsSync(target) && fs.readdirSync(target).length > 0) {
+      throw new Error('Choose an empty (or non-existent) target folder.');
+    }
+
+    await this.stopAllOnQuit();
+    await this.stopIsolatedPhp();
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    try {
+      fs.renameSync(current, target);
+    } catch {
+      // Cross-volume move: copy then remove.
+      fs.cpSync(current, target, { recursive: true });
+      fs.rmSync(current, { recursive: true, force: true });
+    }
+    setDataDirOverride(target);
+    return {
+      ok: true,
+      message: 'Data directory moved. Restart Stacklet to use the new location.',
+      path: target,
+    };
   }
 
   /** Change the local TLD (e.g. test → localhost); regenerates hosts/certs/vhosts. */

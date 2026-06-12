@@ -183,7 +183,9 @@ export function Dashboard() {
               />
               {errorCount > 0 ? 'Needs attention' : running > 0 ? 'Live' : 'Idle'}
             </span>
-            <h2 className="text-3xl font-bold tracking-tight text-foreground">Your local stack</h2>
+            <h2 className="text-4xl font-bold tracking-tight text-foreground">
+              Stack<span className="text-primary">let</span>
+            </h2>
             <p className="text-sm text-text-secondary">
               {running} of {installedCount} services running · {siteCount}{' '}
               {siteCount === 1 ? 'site' : 'sites'}

@@ -7,8 +7,15 @@ import {
   shutdownEngineOnQuit,
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
+import { migrateLegacyDataDir } from '../shared/paths';
 import { initErrorLogging } from './logger';
 
+// App identity (shows "Stacklet" instead of "Electron" in dev menus/taskbar).
+app.setName('Stacklet');
+
+// Migrate the legacy %LOCALAPPDATA%\devmgr folder to \stacklet before anything
+// creates the new data dir.
+migrateLegacyDataDir();
 initErrorLogging();
 
 let mainWindow: BrowserWindow | null = null;

@@ -128,6 +128,9 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     await getEngine().setTld(tld);
     return getEngine().status();
   });
+  ipcMain.handle('devmgr:settings:relocateDataDir', async (_e, newDir: string) =>
+    getEngine().relocateDataDir(newDir),
+  );
   ipcMain.handle('devmgr:hosts:status', () => getEngine().getHostsSyncStatus());
   ipcMain.handle('devmgr:hosts:sync', async () => {
     const result = await getEngine().syncHostsIfNeeded();

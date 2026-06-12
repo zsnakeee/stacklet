@@ -1,14 +1,80 @@
 ﻿import fs from 'fs';
 import path from 'path';
 
-/** Base data directory: %LOCALAPPDATA%\\devmgr (or $TMPDIR/devmgr in tests). */
+const DATA_DIR_NAME = 'stacklet';
+const LEGACY_DATA_DIR_NAME = 'devmgr';
+
+// undefined = not yet checked, null = no override, string = custom data dir.
+let cachedOverride: string | null | undefined;
+
+function baseDir(): string {
+  return (
+    process.env['LOCALAPPDATA'] ?? process.env['TMPDIR'] ?? process.env['TMP'] ?? '/tmp'
+  );
+}
+
+/** Fixed pointer file (outside the data dir) holding a custom data-dir path. */
+function overridePointerPath(): string {
+  return path.join(baseDir(), 'stacklet.datadir');
+}
+
+/** Resolve a custom data-dir override (env or pointer file) once; cache the result. */
+function resolveOverride(): string | null {
+  if (cachedOverride !== undefined) return cachedOverride;
+  const env = process.env['STACKLET_DATA_DIR'];
+  if (env && env.trim()) {
+    cachedOverride = path.resolve(env.trim());
+    return cachedOverride;
+  }
+  try {
+    const ptr = overridePointerPath();
+    if (fs.existsSync(ptr)) {
+      const stored = fs.readFileSync(ptr, 'utf8').trim();
+      if (stored) {
+        cachedOverride = path.resolve(stored);
+        return cachedOverride;
+      }
+    }
+  } catch {
+    // fall through
+  }
+  cachedOverride = null;
+  return null;
+}
+
+/** Base data directory: a custom override, else %LOCALAPPDATA%\stacklet. */
 export function getDataDir(): string {
-  const base =
-    process.env['LOCALAPPDATA'] ??
-    process.env['TMPDIR'] ??
-    process.env['TMP'] ??
-    '/tmp';
-  return path.join(base, 'devmgr');
+  return resolveOverride() ?? path.join(baseDir(), DATA_DIR_NAME);
+}
+
+/** Persist a custom data-dir location (pointer file); re-resolved on next call. */
+export function setDataDirOverride(dir: string | null): void {
+  const ptr = overridePointerPath();
+  if (!dir) {
+    if (fs.existsSync(ptr)) fs.rmSync(ptr);
+  } else {
+    fs.mkdirSync(path.dirname(ptr), { recursive: true });
+    fs.writeFileSync(ptr, path.resolve(dir), 'utf8');
+  }
+  cachedOverride = undefined;
+}
+
+/**
+ * One-time migration of the legacy %LOCALAPPDATA%\devmgr folder to \stacklet.
+ * Must run BEFORE anything creates the new data dir. Best-effort (no throw).
+ */
+export function migrateLegacyDataDir(): void {
+  try {
+    if (process.env['STACKLET_DATA_DIR']) return;
+    if (fs.existsSync(overridePointerPath())) return;
+    const next = path.join(baseDir(), DATA_DIR_NAME);
+    const legacy = path.join(baseDir(), LEGACY_DATA_DIR_NAME);
+    if (!fs.existsSync(next) && fs.existsSync(legacy)) {
+      fs.renameSync(legacy, next);
+    }
+  } catch {
+    // best-effort; default dir will be created fresh if migration fails
+  }
 }
 
 export function getCertsDir(): string {

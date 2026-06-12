@@ -196,5 +196,8 @@ export interface DevmgrAPI {
       services?: Record<string, { enabled?: boolean }>;
     }) => Promise<unknown>;
     openPath: (targetPath: string) => Promise<void>;
+    relocateDataDir: (
+      newDir: string,
+    ) => Promise<{ ok: boolean; message: string; path: string }>;
   };
 }

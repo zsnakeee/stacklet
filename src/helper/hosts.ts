@@ -1,16 +1,30 @@
 ﻿import fs from 'fs';
 import path from 'path';
 
-export const HOSTS_MARKER_BEGIN = '# BEGIN devmgr';
-export const HOSTS_MARKER_END = '# END devmgr';
+export const HOSTS_MARKER_BEGIN = '# BEGIN stacklet';
+export const HOSTS_MARKER_END = '# END stacklet';
 
-/** System hosts file, overridable via DEVMGR_HOSTS_PATH for tests. */
+/** Legacy markers (pre-rename) — removed during sync so they don't linger. */
+const LEGACY_MARKER_BEGIN = '# BEGIN devmgr';
+const LEGACY_MARKER_END = '# END devmgr';
+
+/** System hosts file, overridable via STACKLET_HOSTS_PATH (or legacy DEVMGR_HOSTS_PATH). */
 export function getHostsPath(): string {
-  if (process.env['DEVMGR_HOSTS_PATH']) {
-    return process.env['DEVMGR_HOSTS_PATH'];
-  }
+  const override = process.env['STACKLET_HOSTS_PATH'] ?? process.env['DEVMGR_HOSTS_PATH'];
+  if (override) return override;
   const systemRoot = process.env['SystemRoot'] ?? 'C:\\Windows';
   return path.join(systemRoot, 'System32', 'drivers', 'etc', 'hosts');
+}
+
+/** Remove a legacy devmgr-marked block (migration to the stacklet marker). */
+function stripLegacyBlock(content: string): string {
+  const begin = content.indexOf(LEGACY_MARKER_BEGIN);
+  if (begin === -1) return content;
+  const end = content.indexOf(LEGACY_MARKER_END, begin);
+  if (end === -1) return content;
+  const before = content.slice(0, begin).replace(/\n+$/, '\n');
+  const after = content.slice(end + LEGACY_MARKER_END.length).replace(/^\n+/, '\n');
+  return before + after.replace(/^\n/, '');
 }
 
 function normalizeLineEndings(content: string): string {
@@ -179,6 +193,8 @@ export function hostsSync(
   let content = fs.existsSync(hostsPath)
     ? normalizeLineEndings(fs.readFileSync(hostsPath, 'utf8'))
     : '';
+
+  content = stripLegacyBlock(content);
 
   // Rebuild ONLY the managed block; the user's other hosts entries (any IP,
   // any hostname, comments, blank lines) are left exactly as they were.

@@ -110,6 +110,31 @@ export function Settings() {
             </div>
           ))}
         </dl>
+        <div className="mt-3">
+          <Button
+            size="sm"
+            onClick={() =>
+              runAction({
+                key: 'relocate-data',
+                label: 'Move data directory',
+                global: true,
+                successToast: false,
+                run: async () => {
+                  const dir = await devmgr.dialog.pickDirectory();
+                  if (!dir) return;
+                  const res = await devmgr.settings.relocateDataDir(dir);
+                  toast.success(res.message);
+                },
+              })
+            }
+          >
+            Move data directory…
+          </Button>
+          <Hint className="mt-1">
+            Pick an empty folder — Stacklet stops services, moves its data there, then asks you to
+            restart.
+          </Hint>
+        </div>
       </Section>
 
       <Section title="Startup">
