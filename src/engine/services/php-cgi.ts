@@ -33,7 +33,10 @@ export const PHP_CGI_SPAWN_ENV: Record<string, string> = {
 };
 
 /** Windows PHP listens for nginx via php-cgi.exe -b host:port (not plain php-cgi). */
-export function buildPhpCgiSpawn(fpmBinary: string): PhpCgiSpawnOptions {
+export function buildPhpCgiSpawn(
+  fpmBinary: string,
+  port: number = PHP_FASTCGI_PORT,
+): PhpCgiSpawnOptions {
   if (!fpmBinary) {
     throw new Error('php-fpm: PHP binary path is not configured');
   }
@@ -82,7 +85,7 @@ export function buildPhpCgiSpawn(fpmBinary: string): PhpCgiSpawnOptions {
     args.push('-c', iniPath);
   }
 
-  args.push('-b', `127.0.0.1:${PHP_FASTCGI_PORT}`);
+  args.push('-b', `127.0.0.1:${port}`);
 
   return { args, cwd, env: { ...PHP_CGI_SPAWN_ENV } };
 }

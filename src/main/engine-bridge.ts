@@ -285,6 +285,13 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
       return { sites, status: await getEngine().status() };
     },
   );
+  ipcMain.handle(
+    'devmgr:sites:setPhpVersion',
+    async (_e, name: string, version: string | null) => {
+      const sites = await getEngine().setSitePhpVersion(name, version);
+      return { sites, status: await getEngine().status() };
+    },
+  );
   ipcMain.handle('devmgr:sites:detail', (_e, name: string) =>
     getEngine().getSiteDetailByName(name),
   );

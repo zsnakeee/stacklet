@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
-import { Button, Empty, Field, IconButton, Input, Section, Toggle } from '@/components/ui/primitives';
+import {
+  Button,
+  Empty,
+  Field,
+  IconButton,
+  Input,
+  Section,
+  Select,
+  Toggle,
+} from '@/components/ui/primitives';
 import { Icon } from '@/components/Icon';
 import { useAction } from '@/lib/action';
 import { devmgr } from '@/lib/devmgr';
@@ -33,6 +42,17 @@ export function SiteDetail() {
   const [artisanOut, setArtisanOut] = useState<string | null>(null);
   const [cfgStatus, setCfgStatus] = useState<{ text: string; ok: boolean } | null>(null);
   const [docRoot, setDocRoot] = useState('');
+  const [phpVersions, setPhpVersions] = useState<string[]>([]);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setPhpVersions(await devmgr.php.versions());
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
 
   const load = useCallback(async () => {
     try {
@@ -351,6 +371,38 @@ export function SiteDetail() {
             <p className="text-xs text-text-muted">
               Absolute path, or relative to the project root (e.g. <code>public</code>). Empty =
               auto-detect.
+            </p>
+          </div>
+
+          <div className="mt-2 flex flex-col gap-2">
+            <Field label="PHP version (isolate this site)">
+              <Select
+                className="max-w-xs"
+                value={detail.php_version ?? ''}
+                onChange={(e) =>
+                  runAction({
+                    key: `site-php-${name}`,
+                    label: 'Set site PHP version',
+                    run: async () => {
+                      await devmgr.sitesActions.setPhpVersion(name, e.target.value || null);
+                      await refresh();
+                      await load();
+                      setCfgStatus({ text: 'Site PHP version updated.', ok: true });
+                    },
+                  })
+                }
+              >
+                <option value="">Default (global PHP)</option>
+                {phpVersions.map((v) => (
+                  <option key={v} value={v}>
+                    PHP {v}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <p className="text-xs text-text-muted">
+              Isolating to a non-default version runs a dedicated PHP process for this site (like{' '}
+              <code>herd isolate</code>).
             </p>
           </div>
 

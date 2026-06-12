@@ -60,7 +60,9 @@ import {
   resolveLaravelLogId,
   runLaravelArtisan,
 } from './site-commands';
-import { ServiceManager } from './services';
+import { ManagedProcess, ServiceManager } from './services';
+import { buildPhpCgiSpawn, resolvePhpCgiBinary } from './services/php-cgi';
+import { phpPortForVersion, requiredIsolatedVersions } from './php-isolation';
 import {
   disableBrokenPhpExtensions,
   enableRecommendedExtensions,
@@ -207,6 +209,8 @@ export class Orchestrator {
   private phpAutoRestart = false;
   private phpSupervisorTimer: ReturnType<typeof setInterval> | null = null;
   private phpFpmHealthFailures = 0;
+  /** Dedicated php-cgi instances for per-site isolated (non-default) PHP versions. */
+  private isolatedPhp = new Map<string, ManagedProcess>();
 
   constructor(config?: DevConfig) {
     this.config = config ?? loadConfig();
@@ -484,6 +488,87 @@ export class Orchestrator {
     return this.config;
   }
 
+  // ---- Per-site PHP isolation: a dedicated php-cgi per non-default version ----
+
+  private buildIsolatedPhpProcess(
+    version: string,
+    active: string,
+    installed: string[],
+  ): ManagedProcess | null {
+    const phpRoot = getPhpInstallPath(version);
+    if (!phpRoot) return null;
+    const cgi = resolvePhpCgiBinary(
+      path.join(phpRoot, 'php-cgi.exe'),
+      path.join(phpRoot, 'php.exe'),
+    );
+    const port = phpPortForVersion(version, active, installed);
+    let spawn;
+    try {
+      spawn = buildPhpCgiSpawn(cgi, port);
+    } catch {
+      return null;
+    }
+    return new ManagedProcess(
+      `php-fpm-${version}`,
+      cgi,
+      spawn.args,
+      `php-cgi-${version}.pid`,
+      spawn.cwd,
+      {
+        listenPort: port,
+        spawnEnv: spawn.env,
+        supervise: true,
+        stderrLog: path.join(getLogsDir(), `php-cgi-${version}.stderr.log`),
+      },
+    );
+  }
+
+  /** Start php-cgi instances required by isolated sites; stop those no longer needed. */
+  private async reconcileIsolatedPhp(): Promise<void> {
+    const active = this.getDefaultPhpVersion();
+    const installed = listInstalledVersionDirs('php');
+    const required = new Set(requiredIsolatedVersions(this.sites, active, installed));
+
+    for (const [ver, proc] of [...this.isolatedPhp]) {
+      if (!required.has(ver)) {
+        try {
+          await proc.stop();
+        } catch {
+          // ignore
+        }
+        this.isolatedPhp.delete(ver);
+      }
+    }
+
+    for (const ver of required) {
+      let proc = this.isolatedPhp.get(ver);
+      if (!proc) {
+        const built = this.buildIsolatedPhpProcess(ver, active, installed);
+        if (!built) continue;
+        proc = built;
+        this.isolatedPhp.set(ver, proc);
+      }
+      if (proc.status.state !== 'running') {
+        try {
+          await proc.start();
+        } catch {
+          // surfaced on next refresh
+        }
+      }
+    }
+  }
+
+  private async stopIsolatedPhp(): Promise<void> {
+    for (const [, proc] of this.isolatedPhp) {
+      try {
+        await proc.stop();
+      } catch {
+        // ignore
+      }
+    }
+    this.isolatedPhp.clear();
+  }
+
   private async applyPhpMaintenance(): Promise<void> {
     const caBundlePath = await ensureCaBundle();
     for (const version of listInstalledVersionDirs('php')) {
@@ -571,6 +656,10 @@ export class Orchestrator {
     await this.applyLocalConfigs();
     await this.applyPhpMaintenance();
     await this.syncEnvironmentPath();
+    // Keep isolated php-cgi instances in sync when PHP is running.
+    if (this.services.phpFpm.status.state === 'running') {
+      await this.reconcileIsolatedPhp();
+    }
   }
 
   /**
@@ -618,6 +707,7 @@ export class Orchestrator {
     }
     if (targets.includes('php-fpm')) {
       this.markPhpAutoRestart(true);
+      await this.reconcileIsolatedPhp();
     }
   }
 
@@ -640,6 +730,7 @@ export class Orchestrator {
     }
     if (ordered.includes('php-fpm')) {
       this.markPhpAutoRestart(true);
+      await this.reconcileIsolatedPhp();
     }
   }
 
@@ -683,6 +774,7 @@ export class Orchestrator {
     const targets = this.resolveServiceNames(services);
     if (targets.includes('php-fpm')) {
       this.markPhpAutoRestart(false);
+      await this.stopIsolatedPhp();
     }
     for (const name of targets) {
       await this.getService(name).stop();
@@ -696,6 +788,7 @@ export class Orchestrator {
   /** Stop every configured service on app exit (nginx master + workers included). */
   async stopAllOnQuit(): Promise<void> {
     this.markPhpAutoRestart(false);
+    await this.stopIsolatedPhp();
     const order = [...SERVICE_START_ORDER].reverse();
     for (const name of order) {
       try {
@@ -1260,6 +1353,17 @@ export class Orchestrator {
 
   async setSiteDocRoot(name: string, docRoot: string | null): Promise<Site[]> {
     updateRegisteredSite(name, { doc_root: docRoot });
+    this.refreshSites();
+    await this.apply();
+    return this.getSites();
+  }
+
+  /** Isolate a site to a specific installed PHP version (null = default). */
+  async setSitePhpVersion(name: string, version: string | null): Promise<Site[]> {
+    if (version && !getPhpInstallPath(version)) {
+      throw new Error(`PHP ${version} is not installed`);
+    }
+    updateRegisteredSite(name, { php_version: version });
     this.refreshSites();
     await this.apply();
     return this.getSites();

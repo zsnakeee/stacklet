@@ -70,6 +70,7 @@ export interface SiteDetail extends Site {
   hasArtisan?: boolean;
   aliases?: string[];
   defaultHostname: string;
+  php_version?: string;
 }
 
 export interface VersionInfo {

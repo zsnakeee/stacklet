@@ -1,6 +1,7 @@
 ﻿import path from 'path';
 import { mergeNginxOptions } from '../../bundled/nginx-configure';
 import type { DevConfig, Site } from '../../config/types';
+import { PHP_FASTCGI_PORT } from '../service-ports';
 import {
   getFullChainCertPath,
   getGeneratedDir,
@@ -45,13 +46,13 @@ function clientMaxBodySizeDirective(config: DevConfig): string {
   return `client_max_body_size ${size};`;
 }
 
-function fastcgiPhpLocation(config: DevConfig): string {
+function fastcgiPhpLocation(config: DevConfig, phpPort: number): string {
   const opts = mergeNginxOptions(config.services.nginx.options);
   const bodyLimit = clientMaxBodySizeDirective(config);
   return `
   location ~ \\.php$ {
     ${bodyLimit}
-    fastcgi_pass 127.0.0.1:9000;
+    fastcgi_pass 127.0.0.1:${phpPort};
     fastcgi_index index.php;
     fastcgi_connect_timeout ${opts.fastcgi_connect_timeout};
     fastcgi_send_timeout ${opts.fastcgi_send_timeout};
@@ -64,7 +65,13 @@ function fastcgiPhpLocation(config: DevConfig): string {
   }`.trim();
 }
 
-function serverBlock(site: Site, config: DevConfig, sslCert: string, leafKey: string): string {
+function serverBlock(
+  site: Site,
+  config: DevConfig,
+  sslCert: string,
+  leafKey: string,
+  phpPort: number,
+): string {
   const docRoot = nginxPathLiteral(site.doc_root);
   const accessLog = nginxPathLiteral(path.join(getLogsDir(), 'sites', site.name, 'access.log'));
   const errorLog = nginxPathLiteral(path.join(getLogsDir(), 'sites', site.name, 'error.log'));
@@ -89,7 +96,7 @@ server {
     try_files $uri $uri/ /index.php?$query_string;
   }
 
-  ${fastcgiPhpLocation(config)}
+  ${fastcgiPhpLocation(config, phpPort)}
 }
 `.trim();
 }
@@ -123,12 +130,16 @@ server {
     try_files $uri $uri/ /index.php?$query_string;
   }
 
-  ${fastcgiPhpLocation(config)}
+  ${fastcgiPhpLocation(config, PHP_FASTCGI_PORT)}
 }
 `.trim();
 }
 
-export function renderNginxVhosts(config: DevConfig, sites: Site[]): string {
+export function renderNginxVhosts(
+  config: DevConfig,
+  sites: Site[],
+  phpPort: (site: Site) => number = () => PHP_FASTCGI_PORT,
+): string {
   const sslCert = getFullChainCertPath();
   const leafKey = getLeafKeyPath();
   const includePath = path
@@ -142,7 +153,7 @@ export function renderNginxVhosts(config: DevConfig, sites: Site[]): string {
   const pma = phpMyAdminBlock(config, sslCert, leafKey);
   if (pma) blocks.push(pma);
   const activeSites = sites.filter((s) => s.enabled !== false);
-  blocks.push(...activeSites.map((s) => serverBlock(s, config, sslCert, leafKey)));
+  blocks.push(...activeSites.map((s) => serverBlock(s, config, sslCert, leafKey, phpPort(s))));
 
   if (blocks.length === 0) {
     return `${header}\n# No registered sites\n`;

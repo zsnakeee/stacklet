@@ -13,6 +13,8 @@ export interface RegisteredSite {
   favorite?: boolean;
   /** Override the served document root (absolute, or relative to root). */
   doc_root?: string;
+  /** Isolated PHP version for this site (empty = default). */
+  php_version?: string;
 }
 
 /** Custom doc_root override if set + exists, else framework auto-detection. */
@@ -84,6 +86,7 @@ export function registeredToSite(record: RegisteredSite): Site | null {
     enabled: record.enabled !== false,
     favorite: record.favorite === true,
     aliases: normalizeAliasList(record.aliases),
+    php_version: typeof record.php_version === 'string' ? record.php_version : undefined,
   };
 }
 

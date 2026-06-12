@@ -114,6 +114,7 @@ export interface DevmgrAPI {
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;
     setDocRoot: (name: string, docRoot: string | null) => Promise<unknown>;
+    setPhpVersion: (name: string, version: string | null) => Promise<unknown>;
   };
   site: {
     detail: (name: string) => Promise<unknown>;

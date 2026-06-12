@@ -8,6 +8,8 @@ export interface SitePatch {
   favorite?: boolean;
   /** Document root override; null/empty clears it (back to auto-detect). */
   doc_root?: string | null;
+  /** Isolated PHP version; null/empty clears it (back to default). */
+  php_version?: string | null;
 }
 
 const LABEL = '[a-z0-9]([a-z0-9-]*[a-z0-9])?';
@@ -79,6 +81,13 @@ export function mergeSitePatch(record: RegisteredSite, patch: SitePatch): Regist
       delete next.doc_root;
     } else {
       next.doc_root = patch.doc_root.trim();
+    }
+  }
+  if (patch.php_version !== undefined) {
+    if (patch.php_version === null || patch.php_version.trim() === '') {
+      delete next.php_version;
+    } else {
+      next.php_version = patch.php_version.trim();
     }
   }
   return next;

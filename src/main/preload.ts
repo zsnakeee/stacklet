@@ -78,6 +78,8 @@ const devmgrAPI: DevmgrAPI = {
       ipcRenderer.invoke('devmgr:sites:setDomain', name, domain, aliases),
     setDocRoot: (name, docRoot) =>
       ipcRenderer.invoke('devmgr:sites:setDocRoot', name, docRoot),
+    setPhpVersion: (name, version) =>
+      ipcRenderer.invoke('devmgr:sites:setPhpVersion', name, version),
   },
   site: {
     detail: (name) => ipcRenderer.invoke('devmgr:sites:detail', name),

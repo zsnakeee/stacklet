@@ -180,4 +180,6 @@ export interface Site {
   favorite?: boolean;
   /** Extra server_names beyond the primary hostname. */
   aliases?: string[];
+  /** Isolated PHP version for this site (empty/undefined = use the default). */
+  php_version?: string;
 }
