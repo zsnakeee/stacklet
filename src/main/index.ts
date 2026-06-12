@@ -66,6 +66,7 @@ function createWindow(): BrowserWindow {
     show: !startMinimized(),
     frame: false,
     autoHideMenuBar: true,
+    icon: app.isPackaged ? undefined : path.join(app.getAppPath(), 'build', 'icon.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,

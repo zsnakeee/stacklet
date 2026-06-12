@@ -29,6 +29,7 @@
     "start": "electron .",
     "build": "tsc && vite build",
     "build:renderer": "vite build",
+    "icon": "node scripts/gen-icon.mjs",
     "dev:renderer": "vite",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/renderer/tsconfig.json",
     "test": "vitest run",
@@ -84,10 +85,15 @@
       {
         "from": "dist/renderer",
         "to": "renderer"
+      },
+      {
+        "from": "build/icon.png",
+        "to": "icon.png"
       }
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.ico"
     }
   }
 }
