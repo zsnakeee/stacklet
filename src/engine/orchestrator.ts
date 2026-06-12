@@ -176,13 +176,11 @@ function deferToEventLoop(): Promise<void> {
 
 function configServiceKeyToRuntime(
   key: keyof NonNullable<AppSettingsPatch['services']>,
-): (typeof SERVICE_START_ORDER)[number] | null {
+): string | null {
   if (key === 'php') return 'php-fpm';
-  if (key === 'nodejs' || key === 'phpmyadmin') return null;
-  if ((SERVICE_START_ORDER as readonly string[]).includes(key)) {
-    return key as (typeof SERVICE_START_ORDER)[number];
-  }
-  return null;
+  if (key === 'nodejs' || key === 'phpmyadmin' || key === 'python') return null;
+  // nginx, apache, mysql, postgres, redis, mailpit, mongodb map 1:1 to runtimes.
+  return key;
 }
 
 /** Order an arbitrary service list for sequential start (exported for tests). */

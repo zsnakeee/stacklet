@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, IconButton } from '@/components/ui/primitives';
 import { Icon } from '@/components/Icon';
+import Globe from '@/components/globe';
 import { useAction } from '@/lib/action';
 import { badgeForRuntime } from '@/lib/badge';
 import { RUNTIME_ROWS } from '@/lib/constants';
@@ -153,6 +154,20 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-5">
+      <div className="pointer-events-none flex justify-center">
+        <Globe
+          width={300}
+          height={260}
+          primaryColor="rgb(45, 212, 170)"
+          neutralColor="rgb(96, 165, 250)"
+          globeColor="rgb(14, 21, 28)"
+          globeOpacity={0.55}
+          atmosphereColor="rgba(45, 212, 170, 0.25)"
+          autoRotateSpeed={0.8}
+          enableZoom={false}
+          className="opacity-90"
+        />
+      </div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard value={running} label="Running" highlight />
         <StatCard value={Math.max(0, installedCount - running)} label="Stopped" />

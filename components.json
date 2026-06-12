@@ -17,14 +17,6 @@
     "lib": "@/lib",
     "hooks": "@/hooks"
   },
-  "skills": {
-    "react-bits-pro": {
-      "url": "https://pro.reactbits.dev/api/r/starter/skills",
-      "headers": {
-        "Authorization": "Bearer ${REACTBITS_LICENSE_KEY}"
-      }
-    }
-  },
   "iconLibrary": "lucide",
   "registries": {
     "@reactbits-starter": {

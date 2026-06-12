@@ -26,12 +26,16 @@ export const BUNDLED_RUNTIME: Record<string, string> = Object.fromEntries(
 
 export const SETTINGS_SERVICES = [
   { key: 'nginx', label: 'Nginx' },
+  { key: 'apache', label: 'Apache' },
   { key: 'php', label: 'PHP-FPM' },
   { key: 'mysql', label: 'MySQL' },
   { key: 'postgres', label: 'PostgreSQL' },
   { key: 'redis', label: 'Redis' },
   { key: 'nodejs', label: 'Node.js' },
   { key: 'phpmyadmin', label: 'phpMyAdmin' },
+  { key: 'mailpit', label: 'Mailpit' },
+  { key: 'mongodb', label: 'MongoDB' },
+  { key: 'python', label: 'Python' },
 ] as const;
 
 export const PHP_QUICK_FIELDS: QuickField[] = [
