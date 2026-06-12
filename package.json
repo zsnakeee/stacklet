@@ -1,7 +1,7 @@
 {
   "name": "stacklet",
   "version": "0.1.0",
-  "description": "Stacklet — local Laravel dev stack for Windows (nginx, PHP, MySQL, .test HTTPS)",
+  "description": "Stacklet — local dev stack for Windows: nginx/Apache, PHP, MySQL/MariaDB, PostgreSQL, Redis, MongoDB, Mailpit, Node, Python, phpMyAdmin, and trusted .test HTTPS",
   "author": "zsnakeee",
   "repository": {
     "type": "git",
@@ -16,9 +16,20 @@
     "windows",
     "electron",
     "nginx",
+    "apache",
     "php",
+    "mysql",
+    "mariadb",
+    "postgresql",
+    "redis",
+    "mongodb",
+    "mailpit",
+    "python",
+    "nodejs",
+    "phpmyadmin",
     "local-development",
-    "dev-environment"
+    "dev-environment",
+    "dev-stack"
   ],
   "main": "dist/main/index.js",
   "bin": {
