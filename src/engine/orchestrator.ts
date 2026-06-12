@@ -543,9 +543,12 @@ export class Orchestrator {
 
   /** Installed (binary on disk) and enabled services, in safe start order. */
   getInstalledStartableNames(): string[] {
-    return SERVICE_START_ORDER.filter((name) => {
-      if (!this.isServiceEnabled(name)) return false;
-      return this.getService(name).isConfigured;
+    const webServer = this.config.general.web_server === 'apache' ? 'apache' : 'nginx';
+    return SERVICE_START_ORDER.flatMap((name) => {
+      // Only the active web server (nginx OR apache) is startable.
+      const target = name === 'nginx' ? webServer : name;
+      if (!this.isServiceEnabled(target)) return [];
+      return this.getService(target).isConfigured ? [target] : [];
     });
   }
 
@@ -1479,6 +1482,8 @@ export class Orchestrator {
     switch (name) {
       case 'nginx':
         return s.nginx.enabled !== false;
+      case 'apache':
+        return s.apache.enabled !== false;
       case 'php-fpm':
       case 'php':
         return s.php.enabled !== false;
@@ -1488,6 +1493,10 @@ export class Orchestrator {
         return s.postgres.enabled !== false;
       case 'redis':
         return s.redis.enabled !== false;
+      case 'mailpit':
+        return s.mailpit.enabled !== false;
+      case 'mongodb':
+        return s.mongodb.enabled !== false;
       default:
         return false;
     }
@@ -1497,6 +1506,8 @@ export class Orchestrator {
     switch (name) {
       case 'nginx':
         return this.services.nginx;
+      case 'apache':
+        return this.services.apache;
       case 'php-fpm':
       case 'php':
         return this.services.phpFpm;
@@ -1508,6 +1519,10 @@ export class Orchestrator {
         return this.services.redis;
       case 'nodejs':
         return this.services.nodejs;
+      case 'mailpit':
+        return this.services.mailpit;
+      case 'mongodb':
+        return this.services.mongodb;
       default:
         throw new Error(`unknown service: ${name}`);
     }

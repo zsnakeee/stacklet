@@ -6,6 +6,7 @@ import type { BundledServiceId, BundledServiceStatus } from './types';
 
 const RUNTIME_MAP: Record<string, string> = {
   nginx: 'nginx',
+  apache: 'apache',
   php: 'php-fpm',
   mysql: 'mysql',
   postgres: 'postgres',

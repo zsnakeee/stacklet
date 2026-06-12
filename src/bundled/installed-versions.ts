@@ -31,6 +31,7 @@ export function getActivePhpVersion(): string | null {
 
 const VERSION_MARKERS: Partial<Record<BundledServiceId, string>> = {
   nginx: 'nginx.exe',
+  apache: 'bin/httpd.exe',
   php: 'php.exe',
   mysql: 'bin/mysqld.exe',
   postgres: 'bin/pg_ctl.exe',

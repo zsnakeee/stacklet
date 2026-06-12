@@ -112,6 +112,18 @@ export function applyManifestToConfig(
     }
   }
 
+  if (manifest.apache) {
+    const root = manifest.apache.path;
+    const httpd = findFile(root, 'httpd.exe');
+    if (httpd) {
+      const serverRoot = path.dirname(path.dirname(httpd));
+      next.services.apache.binary = httpd;
+      next.services.apache.server_root = serverRoot;
+      next.services.apache.config = path.join(serverRoot, 'conf', 'httpd.conf');
+      next.services.apache.installed_version = manifest.apache.version;
+    }
+  }
+
   if (manifest.mailpit) {
     const root = manifest.mailpit.path;
     const mailpitExe = findFile(root, 'mailpit.exe');
@@ -157,6 +169,12 @@ export function clearServiceFromConfig(
       next.services.nginx.config = '';
       next.services.nginx.prefix = '';
       delete next.services.nginx.installed_version;
+      break;
+    case 'apache':
+      next.services.apache.binary = '';
+      next.services.apache.config = '';
+      next.services.apache.server_root = '';
+      delete next.services.apache.installed_version;
       break;
     case 'php':
       next.services.php.php_binary = '';

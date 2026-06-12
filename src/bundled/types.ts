@@ -1,5 +1,6 @@
 ﻿export type BundledServiceId =
   | 'nginx'
+  | 'apache'
   | 'php'
   | 'mysql'
   | 'postgres'
@@ -51,6 +52,7 @@ export interface InstalledServiceRecord {
 
 export interface ServicesManifest {
   nginx?: InstalledServiceRecord;
+  apache?: InstalledServiceRecord;
   php?: InstalledServiceRecord;
   mysql?: InstalledServiceRecord;
   postgres?: InstalledServiceRecord;

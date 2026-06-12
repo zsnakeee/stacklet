@@ -10,6 +10,7 @@ import type {
   InstallProgressHandler,
 } from './types';
 import { configureNginxInstall } from './nginx-paths';
+import { configureApacheInstall } from './apache-configure';
 import { ensureCaBundle } from '../engine/php-ca-bundle';
 import { ensurePhpIni } from './php-configure';
 import { ensurePhpMyAdminConfig } from './phpmyadmin-configure';
@@ -62,6 +63,17 @@ async function mockInstall(
         'utf8',
       );
       configureNginxInstall(installDir);
+    },
+    apache: () => {
+      ensureDir(path.join(installDir, 'bin'));
+      ensureDir(path.join(installDir, 'conf'));
+      fs.writeFileSync(path.join(installDir, 'bin', 'httpd.exe'), '', 'utf8');
+      fs.writeFileSync(
+        path.join(installDir, 'conf', 'httpd.conf'),
+        'Define SRVROOT "c:/Apache24"\nServerRoot "${SRVROOT}"\nListen 80\n',
+        'utf8',
+      );
+      configureApacheInstall(installDir);
     },
     php: () => {
       fs.writeFileSync(path.join(installDir, 'php.exe'), '', 'utf8');
@@ -203,6 +215,10 @@ export async function installService(
 
   if (serviceId === 'nginx') {
     configureNginxInstall(installDir);
+  }
+
+  if (serviceId === 'apache') {
+    configureApacheInstall(installDir);
   }
 
   if (serviceId === 'php') {

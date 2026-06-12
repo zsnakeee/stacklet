@@ -1,4 +1,4 @@
-﻿export type WebServer = 'nginx';
+﻿export type WebServer = 'nginx' | 'apache';
 
 /** Nginx http / fastcgi tuning (devmgr-http.conf + vhost generation). */
 export interface NginxOptions {
@@ -20,6 +20,18 @@ export interface NginxServiceConfig {
   port: number;
   ssl_port: number;
   options?: Partial<NginxOptions>;
+  installed_version?: string;
+}
+
+export interface ApacheServiceConfig {
+  enabled: boolean;
+  binary: string;
+  /** httpd.conf path. */
+  config: string;
+  /** ServerRoot (the Apache install dir). */
+  server_root: string;
+  port: number;
+  ssl_port: number;
   installed_version?: string;
 }
 
@@ -143,6 +155,7 @@ export interface DevConfig {
   };
   services: {
     nginx: NginxServiceConfig;
+    apache: ApacheServiceConfig;
     php: PhpServiceConfig;
     mysql: MysqlServiceConfig;
     postgres: PostgresServiceConfig;

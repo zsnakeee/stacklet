@@ -1,5 +1,6 @@
 ﻿import type { BundledServiceId, ServiceCatalogEntry, ServiceVersionEntry } from '../types';
 import { SERVICE_META } from '../catalog-meta';
+import { resolveApacheVersions } from './apache';
 import { resolveMysqlVersions } from './mysql';
 import { resolveNginxVersions } from './nginx';
 import { resolveNodejsVersions } from './nodejs';
@@ -18,6 +19,7 @@ type ResolverFn = (limit?: number) => Promise<ServiceVersionEntry[]>;
 
 const RESOLVERS: Record<BundledServiceId, ResolverFn> = {
   nginx: resolveNginxVersions,
+  apache: resolveApacheVersions,
   php: resolvePhpVersions,
   mysql: resolveMysqlVersions,
   postgres: resolvePostgresVersions,

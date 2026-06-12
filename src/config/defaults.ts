@@ -26,6 +26,14 @@ export function defaultConfig(): DevConfig {
         ssl_port: 443,
         options: defaultNginxOptions(),
       },
+      apache: {
+        enabled: true,
+        binary: '',
+        config: '',
+        server_root: '',
+        port: 80,
+        ssl_port: 443,
+      },
       php: {
         enabled: true,
         version: '8.5.6',

@@ -16,6 +16,7 @@ export {
 
 export class ServiceManager {
   readonly nginx: ManagedProcess;
+  readonly apache: ManagedProcess;
   readonly phpFpm: ManagedProcess;
   readonly mysql: ManagedProcess;
   readonly postgres: ManagedProcess;
@@ -33,6 +34,18 @@ export class ServiceManager {
       nginx.binary,
       prefix && conf ? ['-p', prefix, '-c', conf] : [],
       path.join(prefix || '.', 'logs', 'nginx.pid'),
+    );
+
+    const apache = config.services.apache;
+    const apacheRoot = apache.server_root ? path.resolve(apache.server_root) : '';
+    const apacheConf = apache.config ? path.resolve(apache.config) : '';
+    this.apache = new ManagedProcess(
+      'apache',
+      apache.binary,
+      apache.binary && apacheRoot && apacheConf ? ['-d', apacheRoot, '-f', apacheConf] : [],
+      'apache.pid',
+      apacheRoot || undefined,
+      { listenPort: apache.port },
     );
 
     const phpFpmBinary = resolvePhpCgiBinary(

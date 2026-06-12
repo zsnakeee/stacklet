@@ -13,6 +13,11 @@ export const SERVICE_META: ServiceMeta[] = [
     description: 'Primary web server with SSL vhosts',
   },
   {
+    id: 'apache',
+    name: 'Apache',
+    description: 'Alternative web server (httpd) — switchable with nginx',
+  },
+  {
     id: 'php',
     name: 'PHP',
     description: 'PHP 7.4 – latest (NTS x64, windows.php.net)',

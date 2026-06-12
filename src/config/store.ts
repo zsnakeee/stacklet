@@ -36,7 +36,7 @@ function mergeWithDefaults(partial: Partial<DevConfig>): DevConfig {
     general: {
       ...base.general,
       ...partial.general,
-      web_server: 'nginx',
+      web_server: partial.general?.web_server === 'apache' ? 'apache' : 'nginx',
     },
     services: {
       nginx: {
@@ -47,6 +47,7 @@ function mergeWithDefaults(partial: Partial<DevConfig>): DevConfig {
           ...partial.services?.nginx?.options,
         },
       },
+      apache: { ...base.services.apache, ...partial.services?.apache },
       php: { ...base.services.php, ...partial.services?.php },
       mysql: {
         ...base.services.mysql,
