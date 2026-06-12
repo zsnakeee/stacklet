@@ -11,6 +11,7 @@ const NAV: { to: string; label: string; icon: IconName }[] = [
   { to: '/sites', label: 'Sites', icon: 'navSites' },
   { to: '/services', label: 'Services', icon: 'navServices' },
   { to: '/logs', label: 'Logs', icon: 'navLogs' },
+  { to: '/mailpit', label: 'Mailpit', icon: 'mail' },
   { to: '/settings', label: 'Settings', icon: 'settings' },
 ];
 

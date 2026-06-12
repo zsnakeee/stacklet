@@ -12,6 +12,7 @@ import { SiteDetail } from '@/pages/SiteDetail';
 import { Services } from '@/pages/Services';
 import { ServiceDetail } from '@/pages/ServiceDetail';
 import { Logs } from '@/pages/Logs';
+import { Mailpit } from '@/pages/Mailpit';
 import { Settings } from '@/pages/Settings';
 
 function pageTitle(pathname: string, status: Status | null): string {
@@ -28,6 +29,7 @@ function pageTitle(pathname: string, status: Status | null): string {
   if (raw === '/sites') return 'Sites';
   if (raw === '/services') return 'Services';
   if (raw === '/logs') return 'Logs';
+  if (raw === '/mailpit') return 'Mailpit';
   if (raw === '/settings') return 'Settings';
   return 'Dashboard';
 }
@@ -87,6 +89,7 @@ function Layout() {
               <Route path="/services" element={<Services />} />
               <Route path="/services/:id" element={<ServiceDetail />} />
               <Route path="/logs" element={<Logs />} />
+              <Route path="/mailpit" element={<Mailpit />} />
               <Route path="/settings" element={<Settings />} />
             </Routes>
           </main>

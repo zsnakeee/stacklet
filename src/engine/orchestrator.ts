@@ -147,6 +147,7 @@ export type AppSettingsPatch = {
     start_maximized?: boolean;
     autostart?: boolean;
     launch_on_login?: boolean;
+    xdebug?: boolean;
   };
   services?: Partial<{
     nginx: { enabled?: boolean };
@@ -312,6 +313,9 @@ export class Orchestrator {
       }
       if (patch.general.launch_on_login !== undefined) {
         this.config.general.launch_on_login = patch.general.launch_on_login;
+      }
+      if (patch.general.xdebug !== undefined) {
+        this.config.general.xdebug = patch.general.xdebug;
       }
     }
     const stopRuntime: string[] = [];

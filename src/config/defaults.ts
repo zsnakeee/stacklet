@@ -15,6 +15,7 @@ export function defaultConfig(): DevConfig {
       start_maximized: false,
       autostart: true,
       launch_on_login: false,
+      xdebug: false,
     },
     services: {
       nginx: {

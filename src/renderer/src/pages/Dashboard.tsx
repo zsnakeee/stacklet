@@ -10,6 +10,7 @@ import { RUNTIME_ROWS } from '@/lib/constants';
 import { devmgr } from '@/lib/devmgr';
 import { openServiceLog } from '@/lib/logs-helpers';
 import { bundledById, runtimeStatus, useStore } from '@/lib/store';
+import { useTheme } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
 
 const POLL_MS = 4000;
@@ -100,6 +101,7 @@ function PhpBar() {
 export function Dashboard() {
   const { runAction } = useAction();
   const toast = useToast();
+  const { theme } = useTheme();
   const {
     status,
     starting,
@@ -181,12 +183,13 @@ export function Dashboard() {
         </div>
         <div className="pointer-events-none hidden justify-self-center lg:flex">
           <Globe
+            key={theme}
             width={300}
             height={260}
             primaryColor="rgb(45, 212, 170)"
-            neutralColor="rgb(96, 165, 250)"
-            globeColor="rgb(14, 21, 28)"
-            globeOpacity={0.55}
+            neutralColor={theme === 'dark' ? 'rgb(96, 165, 250)' : 'rgb(37, 99, 235)'}
+            globeColor={theme === 'dark' ? 'rgb(14, 21, 28)' : 'rgb(203, 213, 225)'}
+            globeOpacity={theme === 'dark' ? 0.55 : 0.7}
             atmosphereColor="rgb(45, 212, 170)"
             autoRotateSpeed={0.8}
             enableZoom={false}

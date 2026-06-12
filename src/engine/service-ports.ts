@@ -3,6 +3,9 @@
 /** FastCGI port used by nginx vhosts for PHP on Windows. */
 export const PHP_FASTCGI_PORT = 9000;
 
+/** Dedicated php-cgi (active version + Xdebug) for on-demand debugging. */
+export const PHP_XDEBUG_PORT = 9100;
+
 export function getServicePortLabel(serviceName: string, config: DevConfig): string {
   switch (serviceName) {
     case 'nginx': {

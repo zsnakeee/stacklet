@@ -152,6 +152,8 @@ export interface DevConfig {
     autostart?: boolean;
     /** Launch Stacklet automatically at Windows login. */
     launch_on_login?: boolean;
+    /** Route Xdebug-triggered requests to a dedicated Xdebug-enabled php-cgi. */
+    xdebug?: boolean;
   };
   services: {
     nginx: NginxServiceConfig;

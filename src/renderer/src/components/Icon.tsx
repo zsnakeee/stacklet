@@ -90,6 +90,14 @@ const PATHS: Record<string, { body: ReactNode; fill?: boolean }> = {
   },
   chevronLeft: { body: <polyline points="15 18 9 12 15 6" /> },
   chevronRight: { body: <polyline points="9 18 15 12 9 6" /> },
+  mail: {
+    body: (
+      <>
+        <rect x="2" y="4" width="20" height="16" rx="2" />
+        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+      </>
+    ),
+  },
   // Navigation icons
   navDashboard: {
     body: (
