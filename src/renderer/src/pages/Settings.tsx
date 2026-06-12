@@ -389,6 +389,27 @@ export function Settings() {
             {composerInstalled ? 'Reinstall' : 'Install Composer'}
           </Button>
         </div>
+        <div className="mt-4">
+          <Toggle
+            label="Xdebug on-demand (route XDEBUG-triggered requests to an Xdebug-enabled PHP)"
+            checked={config?.general?.xdebug === true}
+            onChange={(c) =>
+              runAction({
+                key: 'xdebug-toggle',
+                label: 'Update Xdebug',
+                global: true,
+                run: async () => {
+                  await devmgr.settings.save({ general: { xdebug: c } });
+                  await refresh();
+                },
+              })
+            }
+          />
+          <Hint className="mt-1">
+            Requires Xdebug installed for your default PHP (Services → PHP → Extensions → PECL).
+            Trigger via a browser Xdebug extension or <code>?XDEBUG_TRIGGER=1</code>.
+          </Hint>
+        </div>
       </Section>
 
       <Section title="Web server">

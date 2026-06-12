@@ -101,7 +101,7 @@ import {
   phpMyAdminConfigPath,
   resolvePhpMyAdminRoot,
 } from '../bundled/phpmyadmin-configure';
-import { getServicePortLabel } from './service-ports';
+import { getServicePortLabel, PHP_XDEBUG_PORT } from './service-ports';
 import { createLaravelProject, cloneGitProject, resolveExistingProjectPath } from './site-actions';
 import {
   addRegisteredSite,
@@ -212,6 +212,8 @@ export class Orchestrator {
   private phpFpmHealthFailures = 0;
   /** Dedicated php-cgi instances for per-site isolated (non-default) PHP versions. */
   private isolatedPhp = new Map<string, ManagedProcess>();
+  /** On-demand Xdebug php-cgi (active version + Xdebug) for triggered requests. */
+  private xdebugPhp: ManagedProcess | null = null;
 
   constructor(config?: DevConfig) {
     this.config = config ?? loadConfig();
@@ -560,6 +562,8 @@ export class Orchestrator {
         }
       }
     }
+
+    await this.reconcileXdebugPhp();
   }
 
   private async stopIsolatedPhp(): Promise<void> {
@@ -571,6 +575,64 @@ export class Orchestrator {
       }
     }
     this.isolatedPhp.clear();
+    await this.stopXdebugPhp();
+  }
+
+  /** Path to php_xdebug.dll for the active PHP version, if present. */
+  private xdebugDllForActive(): string | null {
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    if (!phpRoot) return null;
+    const dll = path.join(phpRoot, 'ext', 'php_xdebug.dll');
+    return fs.existsSync(dll) ? dll : null;
+  }
+
+  /** Run a second php-cgi (active version + Xdebug) on 9100 when on-demand Xdebug is enabled. */
+  private async reconcileXdebugPhp(): Promise<void> {
+    const dll = this.config.general.xdebug === true ? this.xdebugDllForActive() : null;
+    if (!dll) {
+      await this.stopXdebugPhp();
+      return;
+    }
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    if (!phpRoot) {
+      await this.stopXdebugPhp();
+      return;
+    }
+    const cgi = resolvePhpCgiBinary(
+      path.join(phpRoot, 'php-cgi.exe'),
+      path.join(phpRoot, 'php.exe'),
+    );
+    if (!this.xdebugPhp) {
+      let spawn;
+      try {
+        spawn = buildPhpCgiSpawn(cgi, PHP_XDEBUG_PORT, { xdebugDll: dll });
+      } catch {
+        return;
+      }
+      this.xdebugPhp = new ManagedProcess('php-xdebug', cgi, spawn.args, 'php-xdebug.pid', spawn.cwd, {
+        listenPort: PHP_XDEBUG_PORT,
+        spawnEnv: spawn.env,
+        supervise: true,
+        stderrLog: path.join(getLogsDir(), 'php-xdebug.stderr.log'),
+      });
+    }
+    if (this.xdebugPhp.status.state !== 'running') {
+      try {
+        await this.xdebugPhp.start();
+      } catch {
+        // surfaced on next refresh
+      }
+    }
+  }
+
+  private async stopXdebugPhp(): Promise<void> {
+    if (!this.xdebugPhp) return;
+    try {
+      await this.xdebugPhp.stop();
+    } catch {
+      // ignore
+    }
+    this.xdebugPhp = null;
   }
 
   private async applyPhpMaintenance(): Promise<void> {

@@ -36,6 +36,7 @@ export const PHP_CGI_SPAWN_ENV: Record<string, string> = {
 export function buildPhpCgiSpawn(
   fpmBinary: string,
   port: number = PHP_FASTCGI_PORT,
+  opts?: { xdebugDll?: string },
 ): PhpCgiSpawnOptions {
   if (!fpmBinary) {
     throw new Error('php-fpm: PHP binary path is not configured');
@@ -83,6 +84,23 @@ export function buildPhpCgiSpawn(
   const iniPath = path.join(cwd, 'php.ini');
   if (fs.existsSync(iniPath)) {
     args.push('-c', iniPath);
+  }
+
+  if (opts?.xdebugDll) {
+    args.push(
+      '-d',
+      `zend_extension=${opts.xdebugDll.replace(/\\/g, '/')}`,
+      '-d',
+      'xdebug.mode=debug,develop',
+      '-d',
+      'xdebug.start_with_request=trigger',
+      '-d',
+      'xdebug.client_host=127.0.0.1',
+      '-d',
+      'xdebug.client_port=9003',
+      '-d',
+      'xdebug.discover_client_host=1',
+    );
   }
 
   args.push('-b', `127.0.0.1:${port}`);

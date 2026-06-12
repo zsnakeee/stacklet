@@ -57,6 +57,7 @@ export interface AppConfig {
     start_maximized?: boolean;
     autostart?: boolean;
     launch_on_login?: boolean;
+    xdebug?: boolean;
   };
   services?: Record<string, { enabled?: boolean }>;
 }

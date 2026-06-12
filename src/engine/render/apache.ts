@@ -1,7 +1,7 @@
 import path from 'path';
 import type { DevConfig, Site } from '../../config/types';
 import { getFullChainCertPath, getLeafKeyPath, getLogsDir } from '../../shared/paths';
-import { PHP_FASTCGI_PORT } from '../service-ports';
+import { PHP_FASTCGI_PORT, PHP_XDEBUG_PORT } from '../service-ports';
 
 function q(p: string): string {
   return `"${path.resolve(p).replace(/\\/g, '/').replace(/"/g, '\\"')}"`;
@@ -11,11 +11,23 @@ function serverNames(site: Site): { name: string; aliases: string[] } {
   return { name: site.hostname, aliases: (site.aliases ?? []).filter(Boolean) };
 }
 
-/** PHP handler: proxy *.php to the FastCGI php-cgi (mod_proxy_fcgi). */
-function phpHandler(phpPort: number): string {
+function handlerFor(port: number): string {
   return `  <FilesMatch \\.php$>
-    SetHandler "proxy:fcgi://127.0.0.1:${phpPort}"
+    SetHandler "proxy:fcgi://127.0.0.1:${port}"
   </FilesMatch>`;
+}
+
+/** PHP handler: proxy *.php to php-cgi; route Xdebug-triggered requests to 9100. */
+function phpHandler(phpPort: number, xdebug: boolean): string {
+  if (xdebug && phpPort === PHP_FASTCGI_PORT) {
+    return `  <If "%{HTTP_COOKIE} =~ /XDEBUG_SESSION/ || %{QUERY_STRING} =~ /XDEBUG_(SESSION_START|TRIGGER)/">
+${handlerFor(PHP_XDEBUG_PORT)}
+  </If>
+  <Else>
+${handlerFor(phpPort)}
+  </Else>`;
+  }
+  return handlerFor(phpPort);
 }
 
 function vhost(
@@ -25,6 +37,7 @@ function vhost(
   ssl: { cert: string; key: string } | null,
   ports: { http: number; ssl: number },
   phpPort: number,
+  xdebug: boolean,
 ): string {
   const port = ssl ? ports.ssl : ports.http;
   const alias = names.aliases.length ? `\n  ServerAlias ${names.aliases.join(' ')}` : '';
@@ -40,7 +53,7 @@ function vhost(
     AllowOverride All
     Require all granted
   </Directory>
-${phpHandler(phpPort)}
+${phpHandler(phpPort, xdebug)}
   ErrorLog ${q(path.join(getLogsDir(), 'sites', logName, 'apache-error.log'))}
   CustomLog ${q(path.join(getLogsDir(), 'sites', logName, 'apache-access.log'))} common
 </VirtualHost>`;
@@ -54,10 +67,11 @@ function siteBlocks(
   key: string,
   ports: { http: number; ssl: number },
   phpPort: number,
+  xdebug: boolean,
 ): string {
   return [
-    vhost(docRoot, names, logName, null, ports, phpPort),
-    vhost(docRoot, names, logName, { cert, key }, ports, phpPort),
+    vhost(docRoot, names, logName, null, ports, phpPort, xdebug),
+    vhost(docRoot, names, logName, { cert, key }, ports, phpPort, xdebug),
   ].join('\n\n');
 }
 
@@ -65,6 +79,7 @@ export function renderApacheVhosts(
   config: DevConfig,
   sites: Site[],
   phpPort: (site: Site) => number = () => PHP_FASTCGI_PORT,
+  xdebug = false,
 ): string {
   const cert = getFullChainCertPath();
   const key = getLeafKeyPath();
@@ -84,13 +99,23 @@ export function renderApacheVhosts(
         key,
         ports,
         PHP_FASTCGI_PORT,
+        false,
       ),
     );
   }
 
   for (const site of sites.filter((s) => s.enabled !== false)) {
     blocks.push(
-      siteBlocks(site.doc_root, serverNames(site), site.name, cert, key, ports, phpPort(site)),
+      siteBlocks(
+        site.doc_root,
+        serverNames(site),
+        site.name,
+        cert,
+        key,
+        ports,
+        phpPort(site),
+        xdebug,
+      ),
     );
   }
 
