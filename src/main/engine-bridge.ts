@@ -131,6 +131,10 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stacklet:settings:relocateDataDir', async (_e, newDir: string) =>
     getEngine().relocateDataDir(newDir),
   );
+  ipcMain.handle('stacklet:settings:setProjectsDir', async (_e, dir: string | null) => {
+    await getEngine().setProjectsDir(dir);
+    return { config: getEngine().getConfig(), status: await getEngine().status() };
+  });
   ipcMain.handle('stacklet:hosts:status', () => getEngine().getHostsSyncStatus());
   ipcMain.handle('stacklet:hosts:sync', async () => {
     const result = await getEngine().syncHostsIfNeeded();

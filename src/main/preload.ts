@@ -163,6 +163,7 @@ const devmgrAPI: DevmgrAPI = {
     openPath: (targetPath) => ipcRenderer.invoke('stacklet:settings:openPath', targetPath),
     relocateDataDir: (newDir) =>
       ipcRenderer.invoke('stacklet:settings:relocateDataDir', newDir),
+    setProjectsDir: (dir) => ipcRenderer.invoke('stacklet:settings:setProjectsDir', dir),
   },
   logs: {
     list: () => ipcRenderer.invoke('stacklet:logs:list'),

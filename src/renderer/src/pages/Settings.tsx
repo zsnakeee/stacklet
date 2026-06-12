@@ -135,6 +135,48 @@ export function Settings() {
             restart.
           </Hint>
         </div>
+        <div className="mt-3 flex items-center gap-2">
+          <Button
+            size="sm"
+            onClick={() =>
+              runAction({
+                key: 'set-projects-dir',
+                label: 'Change projects folder',
+                global: true,
+                successToast: false,
+                run: async () => {
+                  const dir = await devmgr.dialog.pickDirectory();
+                  if (!dir) return;
+                  await devmgr.settings.setProjectsDir(dir);
+                  await refresh();
+                  toast.success('Projects folder updated.');
+                },
+              })
+            }
+          >
+            Change projects folder…
+          </Button>
+          <Button
+            size="sm"
+            onClick={() =>
+              runAction({
+                key: 'reset-projects-dir',
+                successToast: false,
+                run: async () => {
+                  await devmgr.settings.setProjectsDir(null);
+                  await refresh();
+                  toast.success('Projects folder reset to default.');
+                },
+              })
+            }
+          >
+            Reset to default
+          </Button>
+        </div>
+        <Hint className="mt-1">
+          New projects are created in the <strong>Projects</strong> folder above (customizable).
+          Existing sites keep their current location.
+        </Hint>
       </Section>
 
       <Section title="Startup">

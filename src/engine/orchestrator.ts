@@ -222,6 +222,7 @@ export class Orchestrator {
   constructor(config?: DevConfig) {
     this.config = config ?? loadConfig();
     setSiteTld(this.config.general.tld ?? 'test');
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
     this.services = new ServiceManager(this.config);
     this.refreshSites();
   }
@@ -241,6 +242,7 @@ export class Orchestrator {
   reloadFromDisk(): void {
     this.config = applyManifestToConfig(loadConfig(), readManifest());
     setSiteTld(this.config.general.tld ?? 'test');
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
     saveConfig(this.config);
     this.services = new ServiceManager(this.config);
     this.refreshSites();
@@ -278,6 +280,20 @@ export class Orchestrator {
       message: 'Data directory moved. Restart Stacklet to use the new location.',
       path: target,
     };
+  }
+
+  /** Set a custom parent folder for new projects (null reverts to the default). */
+  async setProjectsDir(dir: string | null): Promise<DevConfig> {
+    if (dir && dir.trim()) {
+      const resolved = path.resolve(dir.trim());
+      fs.mkdirSync(resolved, { recursive: true });
+      this.config.general.projects_dir = resolved;
+    } else {
+      delete this.config.general.projects_dir;
+    }
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
+    saveConfig(this.config);
+    return this.config;
   }
 
   /** Change the local TLD (e.g. test → localhost); regenerates hosts/certs/vhosts. */
@@ -1615,6 +1631,7 @@ export class Orchestrator {
   private async reloadAfterBundledChange(): Promise<void> {
     this.config = applyManifestToConfig(loadConfig(), readManifest());
     setSiteTld(this.config.general.tld ?? 'test');
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
     saveConfig(this.config);
     this.services = new ServiceManager(this.config);
     this.refreshSites();

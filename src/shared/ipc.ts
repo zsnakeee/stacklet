@@ -199,5 +199,6 @@ export interface DevmgrAPI {
     relocateDataDir: (
       newDir: string,
     ) => Promise<{ ok: boolean; message: string; path: string }>;
+    setProjectsDir: (dir: string | null) => Promise<unknown>;
   };
 }
