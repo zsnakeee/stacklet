@@ -48,8 +48,8 @@
     "spike": "npm run build && node dist/spike/index.js",
     "helper": "npm run build && node dist/helper/server.js",
     "dev": "ts-node src/main/index.ts",
-    "predist": "node scripts/release-pack-lock.mjs",
-    "prepack": "node scripts/release-pack-lock.mjs",
+    "predist": "node scripts/prepare-wincodesign.mjs && node scripts/release-pack-lock.mjs",
+    "prepack": "node scripts/prepare-wincodesign.mjs && node scripts/release-pack-lock.mjs",
     "pack": "npm run build && electron-builder --dir",
     "dist": "npm run build && electron-builder"
   },
