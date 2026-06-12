@@ -25,6 +25,13 @@ export function Settings() {
   );
   const [selectedPaths, setSelectedPaths] = useState<Set<string>>(new Set());
   const [serviceEnabled, setServiceEnabled] = useState<Record<string, boolean>>({});
+  const [startup, setStartup] = useState({
+    start_minimized: false,
+    start_maximized: false,
+    autostart: true,
+    launch_on_login: false,
+  });
+  const [composerInstalled, setComposerInstalled] = useState<boolean | null>(null);
   const [sslMsg, setSslMsg] = useState<StatusMsg>(null);
   const [envMsg, setEnvMsg] = useState<StatusMsg>(null);
   const [settingsMsg, setSettingsMsg] = useState<StatusMsg>(null);
@@ -43,6 +50,11 @@ export function Settings() {
       } catch {
         // ignore
       }
+      try {
+        setComposerInstalled((await devmgr.composer.status()).installed);
+      } catch {
+        // ignore
+      }
     })();
   }, []);
 
@@ -52,6 +64,12 @@ export function Settings() {
       next[key] = config?.services?.[key]?.enabled !== false;
     }
     setServiceEnabled(next);
+    setStartup({
+      start_minimized: config?.general?.start_minimized === true,
+      start_maximized: config?.general?.start_maximized === true,
+      autostart: config?.general?.autostart !== false,
+      launch_on_login: config?.general?.launch_on_login === true,
+    });
   }, [config]);
 
   const paths = {
@@ -90,6 +108,50 @@ export function Settings() {
             </div>
           ))}
         </dl>
+      </Section>
+
+      <Section title="Startup">
+        <Hint>Control what happens when Stacklet launches and whether it starts with Windows.</Hint>
+        <div className="mt-3 flex flex-col gap-3">
+          <Toggle
+            label="Start minimized to the tray"
+            checked={startup.start_minimized}
+            onChange={(c) => setStartup((s) => ({ ...s, start_minimized: c }))}
+          />
+          <Toggle
+            label="Start maximized"
+            checked={startup.start_maximized}
+            onChange={(c) => setStartup((s) => ({ ...s, start_maximized: c }))}
+          />
+          <Toggle
+            label="Auto-start services on launch"
+            checked={startup.autostart}
+            onChange={(c) => setStartup((s) => ({ ...s, autostart: c }))}
+          />
+          <Toggle
+            label="Launch Stacklet at Windows login"
+            checked={startup.launch_on_login}
+            onChange={(c) => setStartup((s) => ({ ...s, launch_on_login: c }))}
+          />
+        </div>
+        <div className="mt-3">
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() =>
+              runAction({
+                key: 'startup-save',
+                label: 'Save startup settings',
+                run: async () => {
+                  await devmgr.settings.save({ general: startup });
+                  await refresh();
+                },
+              })
+            }
+          >
+            Save startup settings
+          </Button>
+        </div>
       </Section>
 
       <Section title="HTTPS (*.test)">
@@ -291,6 +353,42 @@ export function Settings() {
             {settingsMsg.text}
           </p>
         )}
+      </Section>
+
+      <Section title="Tools">
+        <Hint>
+          Composer is installed via the active PHP, so it always uses your default PHP version.
+          After installing, enable it under Environment (PATH) so <code>composer</code> works in any
+          terminal.
+        </Hint>
+        <div className="mt-3 flex items-center gap-3">
+          <span className="text-sm text-foreground">Composer</span>
+          {composerInstalled === null ? (
+            <span className="text-xs text-text-muted">checking…</span>
+          ) : composerInstalled ? (
+            <span className="text-xs text-success">Installed</span>
+          ) : (
+            <span className="text-xs text-text-muted">Not installed</span>
+          )}
+          <Button
+            size="sm"
+            className="ml-auto"
+            onClick={() =>
+              runAction({
+                key: 'composer-install',
+                label: composerInstalled ? 'Reinstall Composer' : 'Install Composer',
+                global: true,
+                run: async () => {
+                  const result = await devmgr.composer.install();
+                  setComposerInstalled(result.installed);
+                  await refresh();
+                },
+              })
+            }
+          >
+            {composerInstalled ? 'Reinstall' : 'Install Composer'}
+          </Button>
+        </div>
       </Section>
 
       <Section title="General">

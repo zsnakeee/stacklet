@@ -11,6 +11,10 @@ export function defaultConfig(): DevConfig {
       park_path: '',
       path_in_env: true,
       path_env_selected: [],
+      start_minimized: false,
+      start_maximized: false,
+      autostart: true,
+      launch_on_login: false,
     },
     services: {
       nginx: {

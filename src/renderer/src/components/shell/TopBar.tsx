@@ -42,6 +42,17 @@ export function TopBar({ title }: { title: string }) {
       },
     });
 
+  const reloadAll = () =>
+    runAction({
+      key: 'reload-all',
+      label: 'Reload everything',
+      global: true,
+      run: async () => {
+        await devmgr.reloadAll();
+        await refresh();
+      },
+    });
+
   const startAll = () =>
     runAction({
       key: 'start-all',
@@ -103,6 +114,14 @@ export function TopBar({ title }: { title: string }) {
             title="Regenerate nginx/PHP configs"
           >
             Re-apply
+          </Button>
+          <Button
+            size="sm"
+            onClick={reloadAll}
+            disabled={bootstrapping || !hasAnyInstalled}
+            title="Regenerate all configs + HTTPS certs and restart every running service"
+          >
+            Reload all
           </Button>
         </div>
         <div className="flex items-center gap-2">

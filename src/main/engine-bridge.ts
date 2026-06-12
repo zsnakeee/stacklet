@@ -1,6 +1,6 @@
 ﻿import fs from 'fs';
 import path from 'path';
-import { BrowserWindow, dialog, ipcMain, shell } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { Orchestrator, type AppSettingsPatch, type BootstrapPhase } from '../engine/orchestrator';
 import type { BundledServiceId } from '../bundled/types';
 import { getDataDir } from '../shared/paths';
@@ -69,6 +69,13 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('devmgr:settings:paths', () => getEngine().getAppPaths());
   ipcMain.handle('devmgr:settings:save', async (_e, patch: AppSettingsPatch) => {
     await getEngine().saveAppSettings(patch);
+    if (patch.general?.launch_on_login !== undefined) {
+      try {
+        app.setLoginItemSettings({ openAtLogin: patch.general.launch_on_login });
+      } catch {
+        // best-effort
+      }
+    }
     return { config: getEngine().getConfig(), status: await getEngine().status() };
   });
   ipcMain.handle('devmgr:ssl:status', () => getEngine().getSslTrustStatus());
@@ -78,6 +85,8 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('devmgr:env:restart', async (_e, openTerminal?: boolean) =>
     getEngine().restartEnvironment(openTerminal !== false),
   );
+  ipcMain.handle('devmgr:composer:status', () => getEngine().getComposerStatus());
+  ipcMain.handle('devmgr:composer:install', async () => getEngine().installComposer());
   ipcMain.handle('devmgr:settings:openPath', async (_e, targetPath: string) => {
     const root = path.resolve(getDataDir());
     const resolved = path.resolve(targetPath);
@@ -98,6 +107,7 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     await getEngine().apply();
     return getEngine().status();
   });
+  ipcMain.handle('devmgr:reloadAll', async () => getEngine().reloadAll());
   ipcMain.handle('devmgr:hosts:status', () => getEngine().getHostsSyncStatus());
   ipcMain.handle('devmgr:hosts:sync', async () => {
     const result = await getEngine().syncHostsIfNeeded();
@@ -232,7 +242,10 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     return { sites, status: await getEngine().status() };
   });
   ipcMain.handle('devmgr:sites:createLaravel', async (_e, name: string) => {
-    const sites = await getEngine().createLaravelSite(name);
+    const win = getWindow();
+    const sites = await getEngine().createLaravelSite(name, (message) => {
+      win?.webContents.send('devmgr:sites:createProgress', { name, message });
+    });
     return { sites, status: await getEngine().status() };
   });
   ipcMain.handle(
@@ -258,6 +271,13 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     'devmgr:sites:setDomain',
     async (_e, name: string, domain: string | null, aliases: string[]) => {
       const sites = await getEngine().setSiteDomain(name, domain, aliases ?? []);
+      return { sites, status: await getEngine().status() };
+    },
+  );
+  ipcMain.handle(
+    'devmgr:sites:setDocRoot',
+    async (_e, name: string, docRoot: string | null) => {
+      const sites = await getEngine().setSiteDocRoot(name, docRoot);
       return { sites, status: await getEngine().status() };
     },
   );

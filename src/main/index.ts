@@ -1,6 +1,11 @@
 ﻿import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import path from 'path';
-import { bootstrapEngineOnLaunch, registerEngineIpc, shutdownEngineOnQuit } from './engine-bridge';
+import {
+  bootstrapEngineOnLaunch,
+  getEngine,
+  registerEngineIpc,
+  shutdownEngineOnQuit,
+} from './engine-bridge';
 import { createTray, destroyTray } from './tray';
 import { initErrorLogging } from './logger';
 
@@ -35,6 +40,22 @@ function registerWindowIpc(getWindow: () => BrowserWindow | null): void {
   });
 }
 
+function startMinimized(): boolean {
+  try {
+    return getEngine().getConfig().general.start_minimized === true;
+  } catch {
+    return false;
+  }
+}
+
+function startMaximized(): boolean {
+  try {
+    return getEngine().getConfig().general.start_maximized === true;
+  } catch {
+    return false;
+  }
+}
+
 function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
@@ -42,7 +63,7 @@ function createWindow(): BrowserWindow {
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#090c0e',
-    show: true,
+    show: !startMinimized(),
     frame: false,
     autoHideMenuBar: true,
     webPreferences: {
@@ -80,6 +101,9 @@ function createWindow(): BrowserWindow {
   win.on('closed', () => {
     mainWindow = null;
   });
+  if (startMaximized() && !startMinimized()) {
+    win.maximize();
+  }
   return win;
 }
 
@@ -91,6 +115,13 @@ app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
   registerEngineIpc(getWindow);
   registerWindowIpc(getWindow);
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: getEngine().getConfig().general.launch_on_login === true,
+    });
+  } catch {
+    // login-item registration is best-effort
+  }
   mainWindow = createWindow();
   createTray(getWindow);
   // Let the window paint and handle UI IPC before autostart (apply/helper can block).

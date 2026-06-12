@@ -53,6 +53,10 @@ export interface AppConfig {
     web_server?: string;
     path_in_env?: boolean;
     path_env_selected?: string[];
+    start_minimized?: boolean;
+    start_maximized?: boolean;
+    autostart?: boolean;
+    launch_on_login?: boolean;
   };
   services?: Record<string, { enabled?: boolean }>;
 }

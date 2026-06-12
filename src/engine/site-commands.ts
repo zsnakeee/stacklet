@@ -75,12 +75,17 @@ export function runLaravelArtisan(site: Site, args: string[]): Promise<string> {
     child.on('close', (code) => {
       const out = Buffer.concat(chunks).toString('utf8').trim();
       const err = Buffer.concat(errChunks).toString('utf8').trim();
-      const text = [out, err].filter(Boolean).join('\n') || '(no output)';
+      const combined = [out, err].filter(Boolean).join('\n');
+      const cmd = `artisan ${args.join(' ')}`.trim();
       if (code !== 0) {
-        reject(new Error(text || `artisan exited with code ${code ?? 'unknown'}`));
+        reject(
+          new Error(
+            combined || `${cmd} exited with code ${code ?? 'unknown'} (no output — try Open terminal to debug).`,
+          ),
+        );
         return;
       }
-      resolve(text);
+      resolve(combined || `${cmd} completed (no output).`);
     });
   });
 }

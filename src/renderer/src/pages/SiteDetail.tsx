@@ -32,10 +32,13 @@ export function SiteDetail() {
   const [notFound, setNotFound] = useState(false);
   const [artisanOut, setArtisanOut] = useState<string | null>(null);
   const [cfgStatus, setCfgStatus] = useState<{ text: string; ok: boolean } | null>(null);
+  const [docRoot, setDocRoot] = useState('');
 
   const load = useCallback(async () => {
     try {
-      setDetail((await devmgr.site.detail(name)) as SiteDetailData);
+      const d = (await devmgr.site.detail(name)) as SiteDetailData;
+      setDetail(d);
+      setDocRoot(d.doc_root ?? '');
     } catch {
       setNotFound(true);
     }
@@ -301,6 +304,41 @@ export function SiteDetail() {
               Saving updates the hosts file and certificate — Windows may prompt for permission.
             </p>
           </form>
+
+          <div className="mt-2 flex flex-col gap-2">
+            <Field label="Document root (folder the web server serves)">
+              <Input
+                value={docRoot}
+                onChange={(e) => setDocRoot(e.target.value)}
+                placeholder="public"
+                autoComplete="off"
+              />
+            </Field>
+            <div>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() =>
+                  runAction({
+                    key: `site-docroot-${name}`,
+                    label: 'Save document root',
+                    run: async () => {
+                      await devmgr.sitesActions.setDocRoot(name, docRoot.trim() || null);
+                      await refresh();
+                      await load();
+                      setCfgStatus({ text: 'Document root saved.', ok: true });
+                    },
+                  })
+                }
+              >
+                Save document root
+              </Button>
+            </div>
+            <p className="text-xs text-text-muted">
+              Absolute path, or relative to the project root (e.g. <code>public</code>). Empty =
+              auto-detect.
+            </p>
+          </div>
 
           {cfgStatus && (
             <p className={cfgStatus.ok ? 'text-xs text-success' : 'text-xs text-danger'}>

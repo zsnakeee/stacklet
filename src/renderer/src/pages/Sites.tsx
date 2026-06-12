@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Button, Empty, Field, IconButton, Input } from '@/components/ui/primitives';
+import { Button, Empty, Field, IconButton, Input, Spinner } from '@/components/ui/primitives';
 import { Modal } from '@/components/ui/Modal';
 import SpotlightCard from '@/components/SpotlightCard';
 import { Icon } from '@/components/Icon';
@@ -141,6 +141,8 @@ export function Sites() {
   const [linkSource, setLinkSource] = useState<string | null>(null);
   const [laravelErr, setLaravelErr] = useState<string | null>(null);
   const [cloneErr, setCloneErr] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createMsg, setCreateMsg] = useState('');
 
   const q = query.trim().toLowerCase();
   const visible = sites.filter((s) => matches(s, q));
@@ -168,15 +170,23 @@ export function Sites() {
       return;
     }
     setLaravelErr(null);
+    setCreating(true);
+    setCreateMsg('Starting…');
+    const off = devmgr.site.onCreateProgress((p) => setCreateMsg(p.message));
     void runAction({
       key: 'site-laravel',
       label: 'New Laravel project',
       global: true,
       run: async () => {
-        setLaravelOpen(false);
-        await devmgr.sitesActions.createLaravel(name);
-        await refresh();
-        navigate('/sites');
+        try {
+          await devmgr.sitesActions.createLaravel(name);
+          await refresh();
+          setLaravelOpen(false);
+          navigate('/sites');
+        } finally {
+          off();
+          setCreating(false);
+        }
       },
     });
   };
@@ -255,8 +265,28 @@ export function Sites() {
         </ul>
       )}
 
-      <Modal open={laravelOpen} onClose={() => setLaravelOpen(false)} title="New Laravel project">
-        <form onSubmit={submitLaravel} className="flex flex-col gap-4">
+      <Modal
+        open={laravelOpen}
+        onClose={() => {
+          if (!creating) setLaravelOpen(false);
+        }}
+        title="New Laravel project"
+      >
+        {creating ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <Spinner />
+              Creating project…
+            </div>
+            <pre className="max-h-44 overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-xs text-text-secondary">
+              {createMsg}
+            </pre>
+            <p className="text-xs text-text-muted">
+              Running Composer — this can take a minute on the first run.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={submitLaravel} className="flex flex-col gap-4">
           <Field label="Folder name">
             <Input name="name" required placeholder="my-app" autoComplete="off" />
           </Field>
@@ -273,6 +303,7 @@ export function Sites() {
             </Button>
           </div>
         </form>
+        )}
       </Modal>
 
       <Modal open={linkOpen} onClose={() => setLinkOpen(false)} title="Link existing project">

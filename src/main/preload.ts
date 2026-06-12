@@ -9,6 +9,7 @@ const devmgrAPI: DevmgrAPI = {
   config: () => ipcRenderer.invoke('devmgr:config'),
   sites: () => ipcRenderer.invoke('devmgr:sites'),
   apply: () => ipcRenderer.invoke('devmgr:apply'),
+  reloadAll: () => ipcRenderer.invoke('devmgr:reloadAll'),
   hosts: {
     status: () => ipcRenderer.invoke('devmgr:hosts:status'),
     sync: () => ipcRenderer.invoke('devmgr:hosts:sync'),
@@ -74,6 +75,8 @@ const devmgrAPI: DevmgrAPI = {
       ipcRenderer.invoke('devmgr:sites:setFavorite', name, favorite),
     setDomain: (name, domain, aliases) =>
       ipcRenderer.invoke('devmgr:sites:setDomain', name, domain, aliases),
+    setDocRoot: (name, docRoot) =>
+      ipcRenderer.invoke('devmgr:sites:setDocRoot', name, docRoot),
   },
   site: {
     detail: (name) => ipcRenderer.invoke('devmgr:sites:detail', name),
@@ -82,6 +85,12 @@ const devmgrAPI: DevmgrAPI = {
     resolveLog: (name) => ipcRenderer.invoke('devmgr:sites:resolveLog', name),
     tinker: (name) => ipcRenderer.invoke('devmgr:sites:tinker', name),
     terminal: (name) => ipcRenderer.invoke('devmgr:sites:terminal', name),
+    onCreateProgress: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, payload: { name: string; message: string }) =>
+        callback(payload);
+      ipcRenderer.on('devmgr:sites:createProgress', handler);
+      return () => ipcRenderer.removeListener('devmgr:sites:createProgress', handler);
+    },
   },
   services: {
     catalog: () => ipcRenderer.invoke('devmgr:services:catalog'),
@@ -129,6 +138,10 @@ const devmgrAPI: DevmgrAPI = {
   },
   shell: {
     openExternal: (url) => ipcRenderer.invoke('devmgr:shell:openExternal', url),
+  },
+  composer: {
+    status: () => ipcRenderer.invoke('devmgr:composer:status'),
+    install: () => ipcRenderer.invoke('devmgr:composer:install'),
   },
   ssl: {
     status: () => ipcRenderer.invoke('devmgr:ssl:status'),

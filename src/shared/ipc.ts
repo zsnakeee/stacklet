@@ -32,6 +32,7 @@ export interface DevmgrAPI {
   config: () => Promise<unknown>;
   sites: () => Promise<unknown>;
   apply: () => Promise<unknown>;
+  reloadAll: () => Promise<unknown>;
   hosts: {
     status: () => Promise<{ hostnames: string[]; complete: boolean; missing: string[] }>;
     sync: () => Promise<{
@@ -111,6 +112,7 @@ export interface DevmgrAPI {
     setEnabled: (name: string, enabled: boolean) => Promise<unknown>;
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;
+    setDocRoot: (name: string, docRoot: string | null) => Promise<unknown>;
   };
   site: {
     detail: (name: string) => Promise<unknown>;
@@ -119,6 +121,9 @@ export interface DevmgrAPI {
     resolveLog: (name: string) => Promise<string | null>;
     tinker: (name: string) => Promise<void>;
     terminal: (name: string) => Promise<void>;
+    onCreateProgress: (
+      callback: (payload: { name: string; message: string }) => void,
+    ) => () => void;
   };
   logs: {
     list: () => Promise<{ id: string; label: string; kind: string }[]>;
@@ -158,6 +163,10 @@ export interface DevmgrAPI {
   shell: {
     openExternal: (url: string) => Promise<void>;
   };
+  composer: {
+    status: () => Promise<{ installed: boolean; dir: string; pharPath: string }>;
+    install: () => Promise<{ installed: boolean; dir: string; pharPath: string }>;
+  };
   ssl: {
     status: () => Promise<{ trusted: boolean; caCertPath: string }>;
     trust: () => Promise<{ ok: boolean; message: string }>;
@@ -171,7 +180,14 @@ export interface DevmgrAPI {
       hostsPath: string;
     }>;
     save: (patch: {
-      general?: { path_in_env?: boolean; path_env_selected?: string[] };
+      general?: {
+        path_in_env?: boolean;
+        path_env_selected?: string[];
+        start_minimized?: boolean;
+        start_maximized?: boolean;
+        autostart?: boolean;
+        launch_on_login?: boolean;
+      };
       services?: Record<string, { enabled?: boolean }>;
     }) => Promise<unknown>;
     openPath: (targetPath: string) => Promise<void>;

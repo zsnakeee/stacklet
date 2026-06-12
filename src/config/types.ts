@@ -132,6 +132,14 @@ export interface DevConfig {
     path_in_env?: boolean;
     /** IDs from listEnvPathCandidates to prepend to the Windows user PATH. */
     path_env_selected?: string[];
+    /** Start the app hidden to the tray. */
+    start_minimized?: boolean;
+    /** Start the window maximized. */
+    start_maximized?: boolean;
+    /** Auto-start enabled services when the app launches (default true). */
+    autostart?: boolean;
+    /** Launch Stacklet automatically at Windows login. */
+    launch_on_login?: boolean;
   };
   services: {
     nginx: NginxServiceConfig;

@@ -6,6 +6,8 @@ export interface SitePatch {
   aliases?: string[];
   enabled?: boolean;
   favorite?: boolean;
+  /** Document root override; null/empty clears it (back to auto-detect). */
+  doc_root?: string | null;
 }
 
 const LABEL = '[a-z0-9]([a-z0-9-]*[a-z0-9])?';
@@ -72,6 +74,13 @@ export function mergeSitePatch(record: RegisteredSite, patch: SitePatch): Regist
   }
   if (patch.enabled !== undefined) next.enabled = patch.enabled;
   if (patch.favorite !== undefined) next.favorite = patch.favorite;
+  if (patch.doc_root !== undefined) {
+    if (patch.doc_root === null || patch.doc_root.trim() === '') {
+      delete next.doc_root;
+    } else {
+      next.doc_root = patch.doc_root.trim();
+    }
+  }
   return next;
 }
 

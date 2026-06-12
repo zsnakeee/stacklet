@@ -122,6 +122,11 @@ import { isDevMgrCaTrusted } from './ssl-trust';
 import { installRootCertCurrentUser } from '../helper/cert';
 import { hostsFileHasAllEntries, getHostsPath } from '../helper/hosts';
 import { openTerminalCommand } from './site-terminal';
+import {
+  getComposerStatus as readComposerStatus,
+  installComposer as installComposerTool,
+  type ComposerStatus,
+} from './composer';
 import { collectTlsSanNames, ensureDevCerts, ensureFullChainCert } from './tls';
 import {
   ensureDataLayout,
@@ -135,6 +140,10 @@ export type AppSettingsPatch = {
   general?: {
     path_in_env?: boolean;
     path_env_selected?: string[];
+    start_minimized?: boolean;
+    start_maximized?: boolean;
+    autostart?: boolean;
+    launch_on_login?: boolean;
   };
   services?: Partial<{
     nginx: { enabled?: boolean };
@@ -262,6 +271,21 @@ export class Orchestrator {
     return restartWindowsEnvironment(this.config, { openTerminal });
   }
 
+  getComposerStatus(): ComposerStatus {
+    return readComposerStatus();
+  }
+
+  async installComposer(): Promise<ComposerStatus> {
+    const status = await installComposerTool();
+    // Add Composer to PATH if the user's selection includes everything.
+    try {
+      await this.syncEnvironmentPath();
+    } catch {
+      // PATH sync is best-effort
+    }
+    return status;
+  }
+
   async saveAppSettings(patch: AppSettingsPatch): Promise<DevConfig> {
     if (patch.general) {
       if (patch.general.path_in_env !== undefined) {
@@ -269,6 +293,18 @@ export class Orchestrator {
       }
       if (patch.general.path_env_selected !== undefined) {
         this.config.general.path_env_selected = [...patch.general.path_env_selected];
+      }
+      if (patch.general.start_minimized !== undefined) {
+        this.config.general.start_minimized = patch.general.start_minimized;
+      }
+      if (patch.general.start_maximized !== undefined) {
+        this.config.general.start_maximized = patch.general.start_maximized;
+      }
+      if (patch.general.autostart !== undefined) {
+        this.config.general.autostart = patch.general.autostart;
+      }
+      if (patch.general.launch_on_login !== undefined) {
+        this.config.general.launch_on_login = patch.general.launch_on_login;
       }
     }
     const stopRuntime: string[] = [];
@@ -486,6 +522,25 @@ export class Orchestrator {
     await this.syncEnvironmentPath();
   }
 
+  /**
+   * Full reload: regenerate every config + TLS cert (so sites are served over
+   * HTTPS), then restart every running runtime (nginx/apache/php/db/…) so the
+   * new configuration and certificates take effect everywhere.
+   */
+  async reloadAll(): Promise<unknown> {
+    const running = this.runtimeServiceStatuses()
+      .filter((s) => s.state === 'running')
+      .map((s) => s.name);
+
+    await this.apply();
+
+    if (running.length > 0) {
+      await this.stop(running);
+      await this.start(running);
+    }
+    return this.status();
+  }
+
   /** Installed (binary on disk) and enabled services, in safe start order. */
   getInstalledStartableNames(): string[] {
     return SERVICE_START_ORDER.filter((name) => {
@@ -544,7 +599,10 @@ export class Orchestrator {
     onPhase?.('listed');
     await deferToEventLoop();
 
-    const names = this.getInstalledStartableNames();
+    // Respect the autostart setting — when off, configs are applied but no
+    // services are started on launch.
+    const names =
+      this.config.general.autostart === false ? [] : this.getInstalledStartableNames();
     for (const name of names) {
       onPhase?.({ kind: 'starting', service: name });
       try {
@@ -1090,12 +1148,17 @@ export class Orchestrator {
     }
   }
 
-  async createLaravelSite(name: string): Promise<Site[]> {
-    const root = await createLaravelProject(getProjectsDir(), name);
+  async createLaravelSite(
+    name: string,
+    onProgress?: (message: string) => void,
+  ): Promise<Site[]> {
+    const root = await createLaravelProject(getProjectsDir(), name, onProgress);
+    onProgress?.('Registering site and applying configuration…');
     addRegisteredSite(name, root);
     this.refreshSites();
     await this.apply();
     await this.provisionSiteHostsAndSsl();
+    onProgress?.('Done');
     return this.getSites();
   }
 
@@ -1138,6 +1201,13 @@ export class Orchestrator {
     this.refreshSites();
     await this.apply();
     await this.provisionSiteHostsAndSsl();
+    return this.getSites();
+  }
+
+  async setSiteDocRoot(name: string, docRoot: string | null): Promise<Site[]> {
+    updateRegisteredSite(name, { doc_root: docRoot });
+    this.refreshSites();
+    await this.apply();
     return this.getSites();
   }
 
