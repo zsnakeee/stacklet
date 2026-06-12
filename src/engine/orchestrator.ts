@@ -140,6 +140,7 @@ import {
   getProjectsDir,
   migrateLegacyDataDir,
   setDataDirOverride,
+  setProjectsDirOverride,
 } from '../shared/paths';
 
 export type AppSettingsPatch = {

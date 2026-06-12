@@ -12,6 +12,7 @@ import { initErrorLogging } from './logger';
 
 // App identity (shows "Stacklet" instead of "Electron" in dev menus/taskbar).
 app.setName('Stacklet');
+process.title = 'Stacklet';
 
 // Migrate the legacy %LOCALAPPDATA%\devmgr folder to \stacklet before anything
 // creates the new data dir.

@@ -140,9 +140,16 @@ export function getSitesManifestPath(): string {
   return path.join(getDataDir(), 'sites.json');
 }
 
-/** Default parent folder for new Laravel projects created by dev-mgr. */
+let projectsDirOverride: string | null = null;
+
+/** Set a custom projects folder (from config); null reverts to the default. */
+export function setProjectsDirOverride(dir: string | null): void {
+  projectsDirOverride = dir && dir.trim() ? path.resolve(dir.trim()) : null;
+}
+
+/** Parent folder for new projects: custom override, else <data>\projects. */
 export function getProjectsDir(): string {
-  return path.join(getDataDir(), 'projects');
+  return projectsDirOverride ?? path.join(getDataDir(), 'projects');
 }
 
 export function ensureDir(dir: string): void {
