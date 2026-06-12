@@ -339,6 +339,27 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stacklet:sites:resolveLog', (_e, name: string) =>
     getEngine().resolveLogIdForSite(name),
   );
+
+  // ---- Node / nvm-windows ----
+  ipcMain.handle('stacklet:node:nvmStatus', () => getEngine().nvmStatus());
+  ipcMain.handle('stacklet:node:nvmAvailable', () => getEngine().nvmAvailable());
+  ipcMain.handle('stacklet:node:nvmInstall', async (_e, version: string) => {
+    try {
+      return { ok: true, output: await getEngine().nvmInstall(version) };
+    } catch (err) {
+      return { ok: false, output: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle('stacklet:node:nvmUse', async (_e, version: string) => {
+    try {
+      return { ok: true, output: await getEngine().nvmUse(version) };
+    } catch (err) {
+      return { ok: false, output: err instanceof Error ? err.message : String(err) };
+    }
+  });
+  ipcMain.handle('stacklet:node:siteInfo', (_e, name: string) =>
+    getEngine().getSiteNodeInfo(name),
+  );
   ipcMain.handle('stacklet:dialog:directory', async () => {
     const win = getWindow();
     const opts = { properties: ['openDirectory'] as ('openDirectory')[] };

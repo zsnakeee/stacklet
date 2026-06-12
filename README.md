@@ -8,7 +8,7 @@
 
 **Your local stack, one place.**
 
-Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache**, multiple PHP versions, MySQL/MariaDB, PostgreSQL, Redis, MongoDB, Mailpit, Node.js, Python, phpMyAdmin, `.test` sites with trusted local HTTPS, and PATH sync — Herd/Laragon-style without manual config.
+Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache**, multiple PHP versions, MySQL/MariaDB, PostgreSQL, Redis, MongoDB, Mailpit, Node.js, Python, phpMyAdmin, `.test` sites with trusted local HTTPS, and PATH sync.
 
 ## Screenshots
 
@@ -39,6 +39,7 @@ Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache*
 
 **UI**
 - Modern React UI (Vite + Tailwind) with **light/dark theme**, collapsible sidebar, dashboard, sites, services, logs, Mailpit inbox, and settings — runs in the tray.
+- **Multi-language** interface with a built-in language switcher (English + Arabic), including automatic **RTL** layout.
 
 **Web servers & PHP**
 - **nginx _or_ Apache** — install both and switch in Settings (PHP served via FastCGI on both).
@@ -56,6 +57,10 @@ Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache*
 - Auto-detect Laravel (`artisan`) and serve `public/` as docroot; **editable document root**.
 - `*.test` hostnames with local HTTPS via a trusted CA; **configurable TLD**.
 - Per-site actions: open in Explorer, **terminal**, **Tinker**, run artisan, **share online via ngrok**.
+
+**Node.js**
+- Multiple Node versions through Services, plus **nvm-windows integration** — list/install/switch Node versions from Settings.
+- **Per-project `.nvmrc`** (or `.node-version`): a site's pinned Node is put on PATH automatically in its terminal/Tinker session, and shown on the site page.
 
 **System**
 - PATH sync for terminal access to bundled tools (php, composer, node, python, mongod…).

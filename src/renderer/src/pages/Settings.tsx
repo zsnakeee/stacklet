@@ -1,10 +1,23 @@
 import { useEffect, useState } from 'react';
-import { Button, Empty, Field, Hint, Input, Section, Toggle } from '@/components/ui/primitives';
+import { useTranslation } from 'react-i18next';
+import {
+  Button,
+  Empty,
+  Field,
+  Hint,
+  Input,
+  Section,
+  Select,
+  Toggle,
+} from '@/components/ui/primitives';
 import { SETTINGS_SERVICES } from '@/lib/constants';
 import { useAction } from '@/lib/action';
 import { devmgr } from '@/lib/devmgr';
+import { LANGUAGES, useLanguage, type LangCode } from '@/lib/i18n';
 import { useStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
+
+type NvmStatus = Awaited<ReturnType<typeof devmgr.node.nvmStatus>>;
 
 interface EnvInfo {
   candidates: { id: string; label: string; path: string; service: string }[];
@@ -17,6 +30,8 @@ type StatusMsg = { text: string; ok: boolean } | null;
 export function Settings() {
   const { runAction } = useAction();
   const toast = useToast();
+  const { t } = useTranslation();
+  const { language, setLanguage } = useLanguage();
   const { status, config, refresh } = useStore();
 
   const [envInfo, setEnvInfo] = useState<EnvInfo>({ candidates: [], selected: [], paths: [] });
@@ -98,6 +113,25 @@ export function Settings() {
 
   return (
     <div className="flex flex-col gap-5">
+      <Section title={t('settings.language.title')}>
+        <Hint>{t('settings.language.hint')}</Hint>
+        <div className="mt-3">
+          <Field label={t('settings.language.label')} inline>
+            <Select
+              className="min-w-44"
+              value={language}
+              onChange={(e) => setLanguage(e.target.value as LangCode)}
+            >
+              {LANGUAGES.map((l) => (
+                <option key={l.code} value={l.code}>
+                  {l.label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        </div>
+      </Section>
+
       <Section title="Paths">
         <dl className="flex flex-col">
           {Object.entries(paths).map(([label, value]) => (
@@ -481,6 +515,8 @@ export function Settings() {
         </div>
       </Section>
 
+      <NodeNvmSection />
+
       <Section title="Web server">
         <Hint>
           Choose which web server serves your sites. Install Apache from Services first; switching
@@ -549,5 +585,136 @@ export function Settings() {
         </div>
       </Section>
     </div>
+  );
+}
+
+/** Node.js version management via nvm-windows. Self-contained state + actions. */
+function NodeNvmSection() {
+  const { t } = useTranslation();
+  const toast = useToast();
+  const [nvm, setNvm] = useState<NvmStatus | null>(null);
+  const [available, setAvailable] = useState<string[] | null>(null);
+  const [installVer, setInstallVer] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const reload = async () => {
+    try {
+      setNvm(await devmgr.node.nvmStatus());
+    } catch {
+      // ignore — leave previous state
+    }
+  };
+
+  useEffect(() => {
+    void reload();
+  }, []);
+
+  const run = async (
+    label: string,
+    fn: () => Promise<{ ok: boolean; output: string }>,
+  ) => {
+    setBusy(true);
+    try {
+      const res = await fn();
+      if (!res.ok) toast.error(res.output || `${label} failed`);
+      else toast.success(label);
+      await reload();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title={t('settings.node.title')}>
+      <Hint>{t('settings.node.hint')}</Hint>
+      {nvm == null ? (
+        <p className="mt-3 text-sm text-text-muted">{t('settings.node.loading')}</p>
+      ) : !nvm.installed ? (
+        <p className="mt-3 text-sm text-warning">{t('settings.node.notInstalled')}</p>
+      ) : (
+        <>
+          <div className="mt-3">
+            <p className="text-sm text-text-secondary">{t('settings.node.installed')}</p>
+            <div className="mt-2 flex flex-col gap-1.5">
+              {nvm.installedVersions.length === 0 ? (
+                <Empty>—</Empty>
+              ) : (
+                nvm.installedVersions.map((v) => (
+                  <div key={v} className="flex items-center gap-3 text-sm">
+                    <span className="min-w-24 font-mono">{v}</span>
+                    {nvm.current === v ? (
+                      <span className="text-xs text-success">{t('settings.node.current')}</span>
+                    ) : (
+                      <Button
+                        size="sm"
+                        disabled={busy}
+                        onClick={() => run(`nvm use ${v}`, () => devmgr.node.nvmUse(v))}
+                      >
+                        {t('settings.node.use')}
+                      </Button>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            <Input
+              className="max-w-40"
+              value={installVer}
+              placeholder={t('settings.node.installPlaceholder')}
+              onChange={(e) => setInstallVer(e.target.value)}
+            />
+            <Button
+              size="sm"
+              variant="primary"
+              disabled={busy || !installVer.trim()}
+              onClick={() =>
+                run(`nvm install ${installVer.trim()}`, () =>
+                  devmgr.node.nvmInstall(installVer.trim()),
+                )
+              }
+            >
+              {t('settings.node.install')}
+            </Button>
+            <Button
+              size="sm"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  setAvailable(await devmgr.node.nvmAvailable());
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              {t('settings.node.refresh')}
+            </Button>
+          </div>
+
+          {available && (
+            <div className="mt-3">
+              <p className="text-sm text-text-secondary">{t('settings.node.available')}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {available.slice(0, 30).map((v) => (
+                  <button
+                    key={v}
+                    type="button"
+                    className="rounded border border-border px-2 py-0.5 font-mono text-xs text-text-secondary transition-colors hover:bg-surface hover:text-foreground"
+                    onClick={() => setInstallVer(v)}
+                  >
+                    {v}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+    </Section>
   );
 }

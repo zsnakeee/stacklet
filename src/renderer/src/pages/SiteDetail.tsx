@@ -43,6 +43,9 @@ export function SiteDetail() {
   const [cfgStatus, setCfgStatus] = useState<{ text: string; ok: boolean } | null>(null);
   const [docRoot, setDocRoot] = useState('');
   const [phpVersions, setPhpVersions] = useState<string[]>([]);
+  const [nodeInfo, setNodeInfo] = useState<Awaited<
+    ReturnType<typeof devmgr.node.siteInfo>
+  > | null>(null);
 
   useEffect(() => {
     void (async () => {
@@ -61,6 +64,11 @@ export function SiteDetail() {
       setDocRoot(d.doc_root ?? '');
     } catch {
       setNotFound(true);
+    }
+    try {
+      setNodeInfo(await devmgr.node.siteInfo(name));
+    } catch {
+      // ignore — Node info is best-effort
     }
   }, [name]);
 
@@ -157,6 +165,18 @@ export function SiteDetail() {
           {detail.laravelLogPath && (
             <InfoRow label="Laravel log" mono>
               {detail.laravelLogPath}
+            </InfoRow>
+          )}
+          {nodeInfo?.nvmrc && (
+            <InfoRow label="Node (.nvmrc)">
+              <span className="font-mono">{nodeInfo.nvmrc}</span>
+              <span className="text-text-muted">
+                {nodeInfo.resolved.source === 'nvmrc' && nodeInfo.resolved.version
+                  ? ` → nvm ${nodeInfo.resolved.version} (used in terminal)`
+                  : nodeInfo.resolved.source === 'bundled'
+                    ? ' → not installed in nvm; using bundled Node'
+                    : ' → not installed'}
+              </span>
             </InfoRow>
           )}
         </dl>

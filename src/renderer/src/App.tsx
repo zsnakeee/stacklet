@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import type { TFunction } from 'i18next';
 import { AppBackground } from '@/components/shell/AppBackground';
 import { TitleBar } from '@/components/shell/TitleBar';
 import { Sidebar } from '@/components/shell/Sidebar';
@@ -15,23 +17,23 @@ import { Logs } from '@/pages/Logs';
 import { Mailpit } from '@/pages/Mailpit';
 import { Settings } from '@/pages/Settings';
 
-function pageTitle(pathname: string, status: Status | null): string {
+function pageTitle(pathname: string, status: Status | null, t: TFunction): string {
   const raw = pathname.replace(/\/+$/, '') || '/';
   if (raw.startsWith('/services/')) {
     const id = raw.split('/')[2];
-    return bundledById(status, id)?.name ?? 'Service';
+    return bundledById(status, id)?.name ?? t('title.service');
   }
   if (raw.startsWith('/sites/')) {
     const name = decodeURIComponent(raw.split('/')[2] ?? '');
     const site = status?.sites?.find((s) => s.name === name);
-    return site?.hostname ?? name ?? 'Site';
+    return site?.hostname ?? name ?? t('title.site');
   }
-  if (raw === '/sites') return 'Sites';
-  if (raw === '/services') return 'Services';
-  if (raw === '/logs') return 'Logs';
-  if (raw === '/mailpit') return 'Mailpit';
-  if (raw === '/settings') return 'Settings';
-  return 'Dashboard';
+  if (raw === '/sites') return t('nav.sites');
+  if (raw === '/services') return t('nav.services');
+  if (raw === '/logs') return t('nav.logs');
+  if (raw === '/mailpit') return t('nav.mailpit');
+  if (raw === '/settings') return t('nav.settings');
+  return t('nav.dashboard');
 }
 
 function BootErrorBanner({ message }: { message: string }) {
@@ -51,7 +53,8 @@ const SIDEBAR_KEY = 'stacklet-sidebar-collapsed';
 function Layout() {
   const location = useLocation();
   const { status, bootError } = useStore();
-  const title = pageTitle(location.pathname, status);
+  const { t } = useTranslation();
+  const title = pageTitle(location.pathname, status, t);
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem(SIDEBAR_KEY) === '1';

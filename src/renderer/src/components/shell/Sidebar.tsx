@@ -1,4 +1,5 @@
 import { NavLink } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { BRAND } from '@shared/brand';
 import ShinyText from '@/components/ShinyText';
 import { Icon, type IconName } from '@/components/Icon';
@@ -6,13 +7,13 @@ import { useStore } from '@/lib/store';
 import { useTheme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
-const NAV: { to: string; label: string; icon: IconName }[] = [
-  { to: '/', label: 'Dashboard', icon: 'navDashboard' },
-  { to: '/sites', label: 'Sites', icon: 'navSites' },
-  { to: '/services', label: 'Services', icon: 'navServices' },
-  { to: '/logs', label: 'Logs', icon: 'navLogs' },
-  { to: '/mailpit', label: 'Mailpit', icon: 'mail' },
-  { to: '/settings', label: 'Settings', icon: 'settings' },
+const NAV: { to: string; key: string; icon: IconName }[] = [
+  { to: '/', key: 'nav.dashboard', icon: 'navDashboard' },
+  { to: '/sites', key: 'nav.sites', icon: 'navSites' },
+  { to: '/services', key: 'nav.services', icon: 'navServices' },
+  { to: '/logs', key: 'nav.logs', icon: 'navLogs' },
+  { to: '/mailpit', key: 'nav.mailpit', icon: 'mail' },
+  { to: '/settings', key: 'nav.settings', icon: 'settings' },
 ];
 
 export function Sidebar({
@@ -24,17 +25,18 @@ export function Sidebar({
 }) {
   const { status, bootError } = useStore();
   const { theme } = useTheme();
+  const { t } = useTranslation();
   const siteCount = status?.sites?.length ?? 0;
   const countLabel = bootError ? '!' : String(siteCount);
   const summaryLabel = bootError
-    ? 'Error'
+    ? t('sidebar.error')
     : status == null
-      ? 'Loading…'
+      ? t('sidebar.loading')
       : siteCount === 0
-        ? 'No projects yet'
+        ? t('sidebar.noProjects')
         : siteCount === 1
-          ? 'Project'
-          : 'Projects';
+          ? t('sidebar.project')
+          : t('sidebar.projects');
 
   // Brand text must read on both themes: dark text on light, light text on dark.
   const brandColor = theme === 'dark' ? '#eef2f6' : '#0f172a';
@@ -58,15 +60,15 @@ export function Sidebar({
               shineColor="#2dd4aa"
               speed={4}
             />
-            <p className="mt-1 text-xs text-text-muted">{BRAND.tagline}</p>
+            <p className="mt-1 text-xs text-text-muted">{t('sidebar.tagline')}</p>
           </div>
         )}
         {!collapsed && (
           <button
             type="button"
             onClick={onToggle}
-            title="Collapse sidebar"
-            aria-label="Collapse sidebar"
+            title={t('sidebar.collapse')}
+            aria-label={t('sidebar.collapse')}
             className="flex size-7 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface hover:text-foreground"
           >
             <Icon name="chevronLeft" size={16} />
@@ -78,8 +80,8 @@ export function Sidebar({
         <button
           type="button"
           onClick={onToggle}
-          title="Expand sidebar"
-          aria-label="Expand sidebar"
+          title={t('sidebar.expand')}
+          aria-label={t('sidebar.expand')}
           className="mx-auto flex size-8 items-center justify-center rounded-md text-text-muted transition-colors hover:bg-surface hover:text-foreground"
         >
           <Icon name="chevronRight" size={16} />
@@ -92,7 +94,7 @@ export function Sidebar({
             key={item.to}
             to={item.to}
             end={item.to === '/'}
-            title={collapsed ? item.label : undefined}
+            title={collapsed ? t(item.key) : undefined}
             className={({ isActive }) =>
               cn(
                 'flex items-center gap-3 rounded-lg py-2 text-sm font-medium transition-colors',
@@ -104,7 +106,7 @@ export function Sidebar({
             }
           >
             <Icon name={item.icon} />
-            {!collapsed && item.label}
+            {!collapsed && t(item.key)}
           </NavLink>
         ))}
       </nav>

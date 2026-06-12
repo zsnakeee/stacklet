@@ -127,6 +127,16 @@ import { installRootCertCurrentUser } from '../helper/cert';
 import { hostsFileHasAllEntries, getHostsPath } from '../helper/hosts';
 import { openTerminalCommand } from './site-terminal';
 import {
+  detectNvm,
+  nvmInstall,
+  nvmListAvailable,
+  nvmUse,
+  readNvmrc,
+  resolveSiteNodeBin,
+  type NvmStatus,
+  type ResolvedNode,
+} from './nvm';
+import {
   getComposerStatus as readComposerStatus,
   installComposer as installComposerTool,
   type ComposerStatus,
@@ -1524,18 +1534,65 @@ export class Orchestrator {
     return runLaravelArtisan(site, args);
   }
 
+  /** Bundled Node's bin dir (folder holding node.exe), or null if not installed. */
+  private bundledNodeBinDir(): string | null {
+    const bin = this.config.services.nodejs?.binary?.trim();
+    return bin ? path.dirname(bin) : null;
+  }
+
+  /**
+   * PATH dirs for a site command: the site's `.nvmrc`-pinned Node (via nvm) when
+   * present, else bundled Node, ahead of the active PHP.
+   */
+  private async sitePathDirs(siteRoot: string): Promise<string[]> {
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    const node = await resolveSiteNodeBin(siteRoot, this.bundledNodeBinDir());
+    const dirs: string[] = [];
+    if (node.dir) dirs.push(node.dir);
+    if (phpRoot) dirs.push(phpRoot);
+    return dirs;
+  }
+
   /** Open an interactive `php artisan tinker` terminal in the site, active PHP on PATH. */
   async openSiteTinker(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
-    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
     await openTerminalCommand({
       key: `tinker-${site.name}`,
       cwd: site.root,
-      pathDirs: phpRoot ? [phpRoot] : [],
+      pathDirs: await this.sitePathDirs(site.root),
       command: 'php artisan tinker',
       title: `Tinker — ${site.name}`,
     });
+  }
+
+  /** Per-site Node resolution for the UI: pinned `.nvmrc` spec + resolved runtime. */
+  async getSiteNodeInfo(
+    name: string,
+  ): Promise<{ nvmrc: string | null; resolved: ResolvedNode }> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    return {
+      nvmrc: readNvmrc(site.root),
+      resolved: await resolveSiteNodeBin(site.root, this.bundledNodeBinDir()),
+    };
+  }
+
+  // ---- nvm-windows (global Node version management) ----
+  async nvmStatus(): Promise<NvmStatus> {
+    return detectNvm();
+  }
+
+  async nvmAvailable(): Promise<string[]> {
+    return nvmListAvailable();
+  }
+
+  async nvmInstall(version: string): Promise<string> {
+    return nvmInstall(version);
+  }
+
+  async nvmUse(version: string): Promise<string> {
+    return nvmUse(version);
   }
 
   /**
@@ -1555,15 +1612,14 @@ export class Orchestrator {
     });
   }
 
-  /** Open a plain terminal in the site folder with the active PHP on PATH. */
+  /** Open a plain terminal in the site folder with the site's Node + active PHP on PATH. */
   async openSiteTerminal(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
-    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
     await openTerminalCommand({
       key: `term-${site.name}`,
       cwd: site.root,
-      pathDirs: phpRoot ? [phpRoot] : [],
+      pathDirs: await this.sitePathDirs(site.root),
       command: `echo Stacklet terminal — ${site.name}`,
       title: `Terminal — ${site.name}`,
     });

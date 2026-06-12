@@ -165,6 +165,13 @@ const devmgrAPI: DevmgrAPI = {
       ipcRenderer.invoke('stacklet:settings:relocateDataDir', newDir),
     setProjectsDir: (dir) => ipcRenderer.invoke('stacklet:settings:setProjectsDir', dir),
   },
+  node: {
+    nvmStatus: () => ipcRenderer.invoke('stacklet:node:nvmStatus'),
+    nvmAvailable: () => ipcRenderer.invoke('stacklet:node:nvmAvailable'),
+    nvmInstall: (version) => ipcRenderer.invoke('stacklet:node:nvmInstall', version),
+    nvmUse: (version) => ipcRenderer.invoke('stacklet:node:nvmUse', version),
+    siteInfo: (name) => ipcRenderer.invoke('stacklet:node:siteInfo', name),
+  },
   logs: {
     list: () => ipcRenderer.invoke('stacklet:logs:list'),
     tail: (id, lines) => ipcRenderer.invoke('stacklet:logs:tail', id, lines ?? 50),

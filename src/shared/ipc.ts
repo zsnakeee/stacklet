@@ -129,6 +129,27 @@ export interface DevmgrAPI {
       callback: (payload: { name: string; message: string }) => void,
     ) => () => void;
   };
+  node: {
+    nvmStatus: () => Promise<{
+      installed: boolean;
+      version: string | null;
+      home: string | null;
+      symlink: string | null;
+      current: string | null;
+      installedVersions: string[];
+    }>;
+    nvmAvailable: () => Promise<string[]>;
+    nvmInstall: (version: string) => Promise<{ ok: boolean; output: string }>;
+    nvmUse: (version: string) => Promise<{ ok: boolean; output: string }>;
+    siteInfo: (name: string) => Promise<{
+      nvmrc: string | null;
+      resolved: {
+        dir: string | null;
+        version: string | null;
+        source: 'nvmrc' | 'bundled' | null;
+      };
+    }>;
+  };
   logs: {
     list: () => Promise<{ id: string; label: string; kind: string }[]>;
     tail: (id: string, lines?: number) => Promise<string[]>;
