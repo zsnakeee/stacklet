@@ -26,7 +26,20 @@ const SKIP_PARK_FOLDER_NAMES = new Set([
   'WindowsPowerShell',
 ]);
 
-/** DNS-safe *.test hostname from a park folder name (spaces → hyphens). */
+/**
+ * Configurable site TLD (default "test"). Set from config by the orchestrator
+ * so the pure hostname helpers below don't need the whole config threaded in.
+ */
+let currentTld = 'test';
+export function setSiteTld(tld: string): void {
+  const clean = (tld || '').trim().toLowerCase().replace(/^\.+/, '').replace(/[^a-z0-9.-]/g, '');
+  currentTld = clean || 'test';
+}
+export function getSiteTld(): string {
+  return currentTld;
+}
+
+/** DNS-safe *.<tld> hostname from a park folder name (spaces → hyphens). */
 export function siteHostnameFromDirName(dirName: string): string {
   const slug = dirName
     .toLowerCase()
@@ -35,7 +48,7 @@ export function siteHostnameFromDirName(dirName: string): string {
     .replace(/[^a-z0-9.-]/g, '')
     .replace(/-+/g, '-')
     .replace(/^-+|-+$/g, '');
-  return `${slug || 'site'}.test`;
+  return `${slug || 'site'}.${currentTld}`;
 }
 
 /** Primary hostname for a site: custom domain override, else derived from name. */

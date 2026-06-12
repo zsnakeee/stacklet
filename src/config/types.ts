@@ -140,6 +140,8 @@ export interface DevConfig {
   general: {
     web_server: WebServer;
     park_path: string;
+    /** Local TLD for site hostnames (default "test"). */
+    tld?: string;
     /** @deprecated Use path_env_selected. If true and path_env_selected unset, all candidates are selected. */
     path_in_env?: boolean;
     /** IDs from listEnvPathCandidates to prepend to the Windows user PATH. */

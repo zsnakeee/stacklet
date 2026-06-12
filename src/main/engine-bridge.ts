@@ -90,8 +90,20 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('devmgr:settings:openPath', async (_e, targetPath: string) => {
     const root = path.resolve(getDataDir());
     const resolved = path.resolve(targetPath);
-    if (resolved !== root && !resolved.startsWith(root + path.sep)) {
-      throw new Error('Path is outside the dev-mgr data directory');
+    // Allow the data dir tree plus a few known-safe system files (e.g. hosts).
+    const hostsPath = path.resolve(
+      process.env['WINDIR'] ?? 'C:\\Windows',
+      'System32',
+      'drivers',
+      'etc',
+      'hosts',
+    );
+    const allowed =
+      resolved === root ||
+      resolved.startsWith(root + path.sep) ||
+      resolved.toLowerCase() === hostsPath.toLowerCase();
+    if (!allowed) {
+      throw new Error('Path is outside the Stacklet data directory');
     }
     if (!fs.existsSync(resolved)) {
       throw new Error('Path does not exist');
@@ -110,6 +122,10 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('devmgr:reloadAll', async () => getEngine().reloadAll());
   ipcMain.handle('devmgr:setWebServer', async (_e, server: 'nginx' | 'apache') => {
     await getEngine().setWebServer(server);
+    return getEngine().status();
+  });
+  ipcMain.handle('devmgr:setTld', async (_e, tld: string) => {
+    await getEngine().setTld(tld);
     return getEngine().status();
   });
   ipcMain.handle('devmgr:hosts:status', () => getEngine().getHostsSyncStatus());

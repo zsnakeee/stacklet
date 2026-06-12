@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { Badge, IconButton } from '@/components/ui/primitives';
 import { Icon } from '@/components/Icon';
 import Globe from '@/components/globe';
-import GradientText from '@/components/GradientText';
 import { useAction } from '@/lib/action';
 import { badgeForRuntime } from '@/lib/badge';
 import { RUNTIME_ROWS } from '@/lib/constants';
@@ -159,20 +158,35 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-col gap-5">
-      <section className="grid items-center gap-5 overflow-hidden rounded-2xl border border-border bg-surface/40 p-5 lg:grid-cols-[1fr_300px]">
-        <div className="flex flex-col gap-4">
-          <div>
-            <GradientText
-              className="text-2xl font-bold"
-              colors={['#2dd4aa', '#60a5fa', '#2dd4aa']}
-              animationSpeed={9}
+      <section className="grid items-center gap-6 overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-surface/70 to-surface/25 p-6 lg:grid-cols-[1fr_280px]">
+        <div className="flex flex-col gap-5">
+          <div className="flex flex-col gap-2">
+            <span
+              className={[
+                'inline-flex w-fit items-center gap-2 text-[11px] font-semibold uppercase tracking-widest',
+                errorCount > 0
+                  ? 'text-warning'
+                  : running > 0
+                    ? 'text-success'
+                    : 'text-text-muted',
+              ].join(' ')}
             >
-              Your local stack
-            </GradientText>
-            <p className="mt-1 text-sm text-text-muted">
+              <span
+                className={[
+                  'size-2 rounded-full',
+                  errorCount > 0
+                    ? 'bg-warning'
+                    : running > 0
+                      ? 'bg-success animate-pulse'
+                      : 'bg-text-muted',
+                ].join(' ')}
+              />
+              {errorCount > 0 ? 'Needs attention' : running > 0 ? 'Live' : 'Idle'}
+            </span>
+            <h2 className="text-3xl font-bold tracking-tight text-foreground">Your local stack</h2>
+            <p className="text-sm text-text-secondary">
               {running} of {installedCount} services running · {siteCount}{' '}
               {siteCount === 1 ? 'site' : 'sites'}
-              {errorCount > 0 ? ` · ${errorCount} need attention` : ''}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">

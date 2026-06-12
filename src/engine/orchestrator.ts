@@ -109,6 +109,7 @@ import {
   removeRegisteredSite,
 } from './sites-registry';
 import { updateRegisteredSite } from './site-config';
+import { getSiteTld, setSiteTld } from './sites';
 import {
   collectEnvPaths,
   listEnvPathCandidates,
@@ -217,6 +218,7 @@ export class Orchestrator {
 
   constructor(config?: DevConfig) {
     this.config = config ?? loadConfig();
+    setSiteTld(this.config.general.tld ?? 'test');
     this.services = new ServiceManager(this.config);
     this.refreshSites();
   }
@@ -234,9 +236,21 @@ export class Orchestrator {
 
   reloadFromDisk(): void {
     this.config = applyManifestToConfig(loadConfig(), readManifest());
+    setSiteTld(this.config.general.tld ?? 'test');
     saveConfig(this.config);
     this.services = new ServiceManager(this.config);
     this.refreshSites();
+  }
+
+  /** Change the local TLD (e.g. test → localhost); regenerates hosts/certs/vhosts. */
+  async setTld(tld: string): Promise<DevConfig> {
+    setSiteTld(tld);
+    this.config.general.tld = getSiteTld();
+    saveConfig(this.config);
+    this.refreshSites();
+    await this.apply();
+    await this.provisionSiteHostsAndSsl();
+    return this.config;
   }
 
   getConfig(): DevConfig {
@@ -1562,6 +1576,7 @@ export class Orchestrator {
 
   private async reloadAfterBundledChange(): Promise<void> {
     this.config = applyManifestToConfig(loadConfig(), readManifest());
+    setSiteTld(this.config.general.tld ?? 'test');
     saveConfig(this.config);
     this.services = new ServiceManager(this.config);
     this.refreshSites();

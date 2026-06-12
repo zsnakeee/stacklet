@@ -9,6 +9,7 @@ export function defaultConfig(): DevConfig {
     general: {
       web_server: 'nginx',
       park_path: '',
+      tld: 'test',
       path_in_env: true,
       path_env_selected: [],
       start_minimized: false,

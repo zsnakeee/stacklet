@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Button, Empty, Hint, Section, Toggle } from '@/components/ui/primitives';
+import { Button, Empty, Field, Hint, Input, Section, Toggle } from '@/components/ui/primitives';
 import { SETTINGS_SERVICES } from '@/lib/constants';
 import { useAction } from '@/lib/action';
 import { devmgr } from '@/lib/devmgr';
@@ -32,6 +32,7 @@ export function Settings() {
     launch_on_login: false,
   });
   const [composerInstalled, setComposerInstalled] = useState<boolean | null>(null);
+  const [tldInput, setTldInput] = useState('test');
   const [sslMsg, setSslMsg] = useState<StatusMsg>(null);
   const [envMsg, setEnvMsg] = useState<StatusMsg>(null);
   const [settingsMsg, setSettingsMsg] = useState<StatusMsg>(null);
@@ -64,6 +65,7 @@ export function Settings() {
       next[key] = config?.services?.[key]?.enabled !== false;
     }
     setServiceEnabled(next);
+    setTldInput(config?.general?.tld ?? 'test');
     setStartup({
       start_minimized: config?.general?.start_minimized === true,
       start_maximized: config?.general?.start_maximized === true,
@@ -441,6 +443,42 @@ export function Settings() {
               </Button>
             );
           })}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4">
+          <Field label="Local TLD for site hostnames">
+            <div className="flex items-center gap-2">
+              <span className="text-text-muted">.</span>
+              <Input
+                className="max-w-32"
+                value={tldInput}
+                onChange={(e) => setTldInput(e.target.value)}
+                placeholder="test"
+              />
+              <Button
+                size="sm"
+                variant="primary"
+                onClick={() =>
+                  runAction({
+                    key: 'set-tld',
+                    label: 'Change TLD',
+                    global: true,
+                    run: async () => {
+                      await devmgr.setTld(tldInput);
+                      await refresh();
+                    },
+                  })
+                }
+              >
+                Save TLD
+              </Button>
+            </div>
+          </Field>
+          <Hint>
+            Changing the TLD (e.g. <code>test</code> → <code>localhost</code>) regenerates hosts
+            entries, certificates, and vhosts — Windows may prompt for permission. Existing sites
+            move to the new TLD.
+          </Hint>
         </div>
       </Section>
     </div>

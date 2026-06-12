@@ -51,6 +51,7 @@ export interface Status {
 export interface AppConfig {
   general?: {
     web_server?: string;
+    tld?: string;
     path_in_env?: boolean;
     path_env_selected?: string[];
     start_minimized?: boolean;

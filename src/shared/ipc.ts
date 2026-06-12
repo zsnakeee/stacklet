@@ -33,6 +33,7 @@ export interface DevmgrAPI {
   sites: () => Promise<unknown>;
   apply: () => Promise<unknown>;
   setWebServer: (server: 'nginx' | 'apache') => Promise<unknown>;
+  setTld: (tld: string) => Promise<unknown>;
   reloadAll: () => Promise<unknown>;
   hosts: {
     status: () => Promise<{ hostnames: string[]; complete: boolean; missing: string[] }>;
