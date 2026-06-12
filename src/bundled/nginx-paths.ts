@@ -82,7 +82,7 @@ function stripDevMgrInclude(conf: string): string {
   );
 }
 
-/** Directives owned by devmgr-http.conf — strip from main http {} to avoid duplicate errors. */
+/** Directives owned by stacklet-http.conf — strip from main http {} to avoid duplicate errors. */
 const HTTP_DIRECTIVES_IN_SNIPPET = [
   'client_max_body_size',
   'keepalive_timeout',

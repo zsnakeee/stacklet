@@ -1,6 +1,6 @@
 ﻿export type WebServer = 'nginx' | 'apache';
 
-/** Nginx http / fastcgi tuning (devmgr-http.conf + vhost generation). */
+/** Nginx http / fastcgi tuning (stacklet-http.conf + vhost generation). */
 export interface NginxOptions {
   client_max_body_size: string;
   keepalive_timeout: number;

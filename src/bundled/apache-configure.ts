@@ -37,8 +37,10 @@ const REQUIRED_MODULES = [
   'vhost_alias_module modules/mod_vhost_alias.so',
 ];
 
-const DEVMGR_BEGIN = '# BEGIN devmgr';
-const DEVMGR_END = '# END devmgr';
+const DEVMGR_BEGIN = '# BEGIN stacklet';
+const DEVMGR_END = '# END stacklet';
+const LEGACY_BEGIN = '# BEGIN devmgr';
+const LEGACY_END = '# END devmgr';
 
 /**
  * Patch Apache Lounge's shipped conf/httpd.conf for Stacklet: point ServerRoot
@@ -84,6 +86,10 @@ export function configureApacheInstall(installRoot: string): void {
     `Include "${apacheSitesConfPath().replace(/\\/g, '/')}"`,
     DEVMGR_END,
   ].join('\n');
+  // Migration: drop any legacy "# BEGIN devmgr" block (referenced devmgr-apache.conf).
+  const legacyRe = new RegExp(`\\n?${LEGACY_BEGIN}[\\s\\S]*?${LEGACY_END}\\n?`, 'm');
+  content = content.replace(legacyRe, '\n');
+
   const blockRe = new RegExp(`${DEVMGR_BEGIN}[\\s\\S]*?${DEVMGR_END}`, 'm');
   content = blockRe.test(content)
     ? content.replace(blockRe, includeBlock)

@@ -46,14 +46,14 @@ export function NginxSettings({ version }: { version: string }) {
             successToast: false,
             run: async () => {
               const data = (await devmgr.nginx.getSettings(version || undefined)) as NginxData | null;
-              if (!data?.httpConfPath) throw new Error('devmgr-http.conf not found');
+              if (!data?.httpConfPath) throw new Error('stacklet-http.conf not found');
               await devmgr.settings.openPath(data.httpConfPath);
-              toast.success('devmgr-http.conf opened');
+              toast.success('stacklet-http.conf opened');
             },
           })
         }
       >
-        Open devmgr-http.conf
+        Open stacklet-http.conf
       </Button>
       <Button
         size="sm"
@@ -83,7 +83,7 @@ export function NginxSettings({ version }: { version: string }) {
       toolbar={toolbar}
       footnote={
         <Hint>
-          HTTP tuning is written to <code>devmgr-http.conf</code>; PHP timeouts apply to all site
+          HTTP tuning is written to <code>stacklet-http.conf</code>; PHP timeouts apply to all site
           vhosts. Saving runs <strong>Re-apply</strong> and reloads nginx when it is running.
         </Hint>
       }
