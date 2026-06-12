@@ -147,12 +147,16 @@ export type AppSettingsPatch = {
   };
   services?: Partial<{
     nginx: { enabled?: boolean };
+    apache: { enabled?: boolean };
     php: { enabled?: boolean };
     mysql: { enabled?: boolean };
     postgres: { enabled?: boolean };
     redis: { enabled?: boolean };
     nodejs: { enabled?: boolean };
     phpmyadmin: { enabled?: boolean };
+    mailpit: { enabled?: boolean };
+    mongodb: { enabled?: boolean };
+    python: { enabled?: boolean };
   }>;
 };
 
