@@ -33,7 +33,7 @@ export function renderAll(config: DevConfig, sites: Site[]): void {
   const nginxDir = path.join(getGeneratedDir(), 'nginx');
   ensureDir(nginxDir);
   fs.writeFileSync(
-    path.join(nginxDir, 'devmgr-sites.conf'),
+    path.join(nginxDir, 'stacklet-sites.conf'),
     renderNginxVhosts(config, sites, phpPort, xdebugActive),
     'utf8',
   );
