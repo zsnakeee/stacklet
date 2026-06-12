@@ -33,16 +33,16 @@ function rendererIndexPath(): string {
 }
 
 function registerWindowIpc(getWindow: () => BrowserWindow | null): void {
-  ipcMain.on('devmgr:window:minimize', () => {
+  ipcMain.on('stacklet:window:minimize', () => {
     getWindow()?.minimize();
   });
-  ipcMain.on('devmgr:window:maximize', () => {
+  ipcMain.on('stacklet:window:maximize', () => {
     const win = getWindow();
     if (!win) return;
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
-  ipcMain.on('devmgr:window:close', () => {
+  ipcMain.on('stacklet:window:close', () => {
     getWindow()?.close();
   });
 }
@@ -95,10 +95,10 @@ function createWindow(): BrowserWindow {
     }
   });
   win.on('maximize', () => {
-    win.webContents.send('devmgr:window:maximized', true);
+    win.webContents.send('stacklet:window:maximized', true);
   });
   win.on('unmaximize', () => {
-    win.webContents.send('devmgr:window:maximized', false);
+    win.webContents.send('stacklet:window:maximized', false);
   });
   win.on('close', (e) => {
     if (!quitting) {
