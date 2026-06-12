@@ -86,6 +86,7 @@ const devmgrAPI: DevmgrAPI = {
     resolveLog: (name) => ipcRenderer.invoke('devmgr:sites:resolveLog', name),
     tinker: (name) => ipcRenderer.invoke('devmgr:sites:tinker', name),
     terminal: (name) => ipcRenderer.invoke('devmgr:sites:terminal', name),
+    share: (name) => ipcRenderer.invoke('devmgr:sites:share', name),
     onCreateProgress: (callback) => {
       const handler = (_e: Electron.IpcRendererEvent, payload: { name: string; message: string }) =>
         callback(payload);

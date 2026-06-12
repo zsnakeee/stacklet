@@ -168,6 +168,20 @@ export function SiteDetail() {
           >
             Open terminal
           </Button>
+          <Button
+            size="sm"
+            title="Share this site publicly via ngrok (requires ngrok + auth token)"
+            onClick={() =>
+              runAction({
+                key: `share-${name}`,
+                label: 'Share online',
+                successToast: false,
+                run: () => devmgr.site.share(name),
+              })
+            }
+          >
+            Share online
+          </Button>
           {isLaravel && detail.hasArtisan && (
             <Button
               size="sm"

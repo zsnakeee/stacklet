@@ -122,6 +122,7 @@ export interface DevmgrAPI {
     resolveLog: (name: string) => Promise<string | null>;
     tinker: (name: string) => Promise<void>;
     terminal: (name: string) => Promise<void>;
+    share: (name: string) => Promise<void>;
     onCreateProgress: (
       callback: (payload: { name: string; message: string }) => void,
     ) => () => void;

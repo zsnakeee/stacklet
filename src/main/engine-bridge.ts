@@ -303,6 +303,9 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('devmgr:sites:terminal', async (_e, name: string) =>
     getEngine().openSiteTerminal(name),
   );
+  ipcMain.handle('devmgr:sites:share', async (_e, name: string) =>
+    getEngine().openSiteShare(name),
+  );
   ipcMain.handle('devmgr:sites:resolveLog', (_e, name: string) =>
     getEngine().resolveLogIdForSite(name),
   );

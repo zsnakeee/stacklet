@@ -1300,6 +1300,23 @@ export class Orchestrator {
     });
   }
 
+  /**
+   * Share a site publicly via ngrok (host-header rewrite to the .test vhost).
+   * Opens a terminal running ngrok — requires ngrok installed + an auth token
+   * (`ngrok config add-authtoken ...`).
+   */
+  async openSiteShare(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    await openTerminalCommand({
+      key: `share-${site.name}`,
+      cwd: site.root,
+      pathDirs: [],
+      command: `ngrok http --host-header=rewrite ${site.hostname}`,
+      title: `Share — ${site.hostname}`,
+    });
+  }
+
   /** Open a plain terminal in the site folder with the active PHP on PATH. */
   async openSiteTerminal(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
