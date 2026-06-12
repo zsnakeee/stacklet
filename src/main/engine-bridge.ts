@@ -273,6 +273,12 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('devmgr:sites:artisan', async (_e, name: string, args: string[]) =>
     getEngine().runSiteArtisan(name, args),
   );
+  ipcMain.handle('devmgr:sites:tinker', async (_e, name: string) =>
+    getEngine().openSiteTinker(name),
+  );
+  ipcMain.handle('devmgr:sites:terminal', async (_e, name: string) =>
+    getEngine().openSiteTerminal(name),
+  );
   ipcMain.handle('devmgr:sites:resolveLog', (_e, name: string) =>
     getEngine().resolveLogIdForSite(name),
   );

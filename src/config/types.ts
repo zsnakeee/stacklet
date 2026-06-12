@@ -99,6 +99,30 @@ export interface PhpMyAdminServiceConfig {
   installed_version?: string;
 }
 
+export interface MailpitServiceConfig {
+  enabled: boolean;
+  binary: string;
+  /** SMTP port apps send to (MAIL_PORT). */
+  port: number;
+  /** Web inbox port. */
+  ui_port: number;
+  installed_version?: string;
+}
+
+export interface MongodbServiceConfig {
+  enabled: boolean;
+  binary: string;
+  port: number;
+  data_dir: string;
+  installed_version?: string;
+}
+
+export interface PythonServiceConfig {
+  enabled: boolean;
+  binary: string;
+  installed_version?: string;
+}
+
 export interface DevConfig {
   version: number;
   general: {
@@ -117,6 +141,9 @@ export interface DevConfig {
     nodejs: NodejsServiceConfig;
     redis: RedisServiceConfig;
     phpmyadmin: PhpMyAdminServiceConfig;
+    mailpit: MailpitServiceConfig;
+    mongodb: MongodbServiceConfig;
+    python: PythonServiceConfig;
   };
 }
 

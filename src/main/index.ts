@@ -1,8 +1,10 @@
 ﻿import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
-import fs from 'fs';
 import path from 'path';
 import { bootstrapEngineOnLaunch, registerEngineIpc, shutdownEngineOnQuit } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
+import { initErrorLogging } from './logger';
+
+initErrorLogging();
 
 let mainWindow: BrowserWindow | null = null;
 let quitting = false;
@@ -12,10 +14,9 @@ function rendererIndexPath(): string {
   if (app.isPackaged) {
     return path.join(process.resourcesPath, 'renderer', 'index.html');
   }
-  const srcHtml = path.join(app.getAppPath(), 'src', 'renderer', 'index.html');
-  if (fs.existsSync(srcHtml)) {
-    return srcHtml;
-  }
+  // Dev (electron . on compiled output): load the Vite build output, NOT the
+  // src/renderer/index.html source entry (which is a Vite entry that only works
+  // through bundling). __dirname is dist/main, so ../renderer is dist/renderer.
   return path.join(__dirname, '..', 'renderer', 'index.html');
 }
 
@@ -38,6 +39,8 @@ function createWindow(): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
+    minWidth: 900,
+    minHeight: 600,
     backgroundColor: '#090c0e',
     show: true,
     frame: false,

@@ -112,6 +112,36 @@ export function applyManifestToConfig(
     }
   }
 
+  if (manifest.mailpit) {
+    const root = manifest.mailpit.path;
+    const mailpitExe = findFile(root, 'mailpit.exe');
+    if (mailpitExe) {
+      next.services.mailpit.binary = mailpitExe;
+      next.services.mailpit.installed_version = manifest.mailpit.version;
+    }
+  }
+
+  if (manifest.mongodb) {
+    const root = manifest.mongodb.path;
+    const mongod = findFile(root, 'mongod.exe');
+    const dataDir = path.join(root, 'data');
+    if (mongod) {
+      next.services.mongodb.binary = mongod;
+      next.services.mongodb.installed_version = manifest.mongodb.version;
+      if (!exists(dataDir)) ensureDir(dataDir);
+      next.services.mongodb.data_dir = dataDir;
+    }
+  }
+
+  if (manifest.python) {
+    const root = manifest.python.path;
+    const pythonExe = findFile(root, 'python.exe');
+    if (pythonExe) {
+      next.services.python.binary = pythonExe;
+      next.services.python.installed_version = manifest.python.version;
+    }
+  }
+
   return next;
 }
 
@@ -155,6 +185,19 @@ export function clearServiceFromConfig(
     case 'phpmyadmin':
       next.services.phpmyadmin.path = '';
       delete next.services.phpmyadmin.installed_version;
+      break;
+    case 'mailpit':
+      next.services.mailpit.binary = '';
+      delete next.services.mailpit.installed_version;
+      break;
+    case 'mongodb':
+      next.services.mongodb.binary = '';
+      next.services.mongodb.data_dir = '';
+      delete next.services.mongodb.installed_version;
+      break;
+    case 'python':
+      next.services.python.binary = '';
+      delete next.services.python.installed_version;
       break;
   }
 

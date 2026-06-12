@@ -37,6 +37,9 @@ const VERSION_MARKERS: Partial<Record<BundledServiceId, string>> = {
   redis: 'redis-server.exe',
   nodejs: 'node.exe',
   phpmyadmin: 'index.php',
+  mailpit: 'mailpit.exe',
+  mongodb: 'bin/mongod.exe',
+  python: 'python.exe',
 };
 
 /** True when the version folder exists and contains the service binary (or index.php). */

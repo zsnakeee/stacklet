@@ -11,9 +11,11 @@ const RUNTIME_MAP: Record<string, string> = {
   postgres: 'postgres',
   redis: 'redis',
   nodejs: 'nodejs',
+  mailpit: 'mailpit',
+  mongodb: 'mongodb',
 };
 
-const NO_RUNTIME = new Set<BundledServiceId>(['nodejs', 'phpmyadmin']);
+const NO_RUNTIME = new Set<BundledServiceId>(['nodejs', 'phpmyadmin', 'python']);
 
 function resolveRuntimeState(
   entryId: BundledServiceId,

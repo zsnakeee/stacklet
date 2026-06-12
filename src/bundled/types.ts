@@ -5,7 +5,10 @@
   | 'postgres'
   | 'nodejs'
   | 'redis'
-  | 'phpmyadmin';
+  | 'phpmyadmin'
+  | 'mailpit'
+  | 'mongodb'
+  | 'python';
 
 export type InstallPhase =
   | 'download'
@@ -54,6 +57,9 @@ export interface ServicesManifest {
   nodejs?: InstalledServiceRecord;
   redis?: InstalledServiceRecord;
   phpmyadmin?: InstalledServiceRecord;
+  mailpit?: InstalledServiceRecord;
+  mongodb?: InstalledServiceRecord;
+  python?: InstalledServiceRecord;
 }
 
 export interface BundledServiceStatus {

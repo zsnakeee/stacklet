@@ -86,6 +86,17 @@ async function mockInstall(
     phpmyadmin: () => {
       fs.writeFileSync(path.join(installDir, 'index.php'), '', 'utf8');
     },
+    mailpit: () => {
+      fs.writeFileSync(path.join(installDir, 'mailpit.exe'), '', 'utf8');
+    },
+    mongodb: () => {
+      ensureDir(path.join(installDir, 'bin'));
+      ensureDir(path.join(installDir, 'data'));
+      fs.writeFileSync(path.join(installDir, 'bin', 'mongod.exe'), '', 'utf8');
+    },
+    python: () => {
+      fs.writeFileSync(path.join(installDir, 'python.exe'), '', 'utf8');
+    },
   };
 
   stubs[serviceId]();

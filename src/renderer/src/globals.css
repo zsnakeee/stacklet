@@ -1,0 +1,173 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+/*
+ * Stacklet supports light + dark. The dark palette mirrors src/shared/theme.ts.
+ * :root holds the LIGHT theme; .dark overrides with the dark theme. The app
+ * toggles by adding/removing `dark` on <html> (see lib/theme.tsx).
+ */
+:root {
+  --radius: 0.625rem;
+  --titlebar-h: 38px;
+
+  --background: #f4f6f9;
+  --foreground: #0f172a;
+
+  --card: #ffffff;
+  --card-foreground: #0f172a;
+  --popover: #ffffff;
+  --popover-foreground: #0f172a;
+
+  --primary: #0d9488;
+  --primary-foreground: #ffffff;
+
+  --secondary: #eaeef3;
+  --secondary-foreground: #0f172a;
+
+  --muted: #eef2f6;
+  --muted-foreground: #5b6b7d;
+
+  --accent: #2563eb;
+  --accent-foreground: #ffffff;
+
+  --destructive: #dc2626;
+  --destructive-foreground: #ffffff;
+
+  --border: rgba(15, 23, 42, 0.12);
+  --input: rgba(15, 23, 42, 0.16);
+  --ring: #0d9488;
+
+  /* Stacklet extras (not part of shadcn's default set) */
+  --surface: #ffffff;
+  --surface-raised: #f1f5f9;
+  --text-secondary: #475569;
+  --text-muted: #8294a8;
+  --success: #059669;
+  --warning: #d97706;
+  --danger: #dc2626;
+}
+
+.dark {
+  --background: #070a0d;
+  --foreground: #eef2f6;
+
+  --card: #121a22;
+  --card-foreground: #eef2f6;
+  --popover: #0e151c;
+  --popover-foreground: #eef2f6;
+
+  --primary: #2dd4aa;
+  --primary-foreground: #04130d;
+
+  --secondary: #1a242e;
+  --secondary-foreground: #eef2f6;
+
+  --muted: #121a22;
+  --muted-foreground: #8b9aab;
+
+  --accent: #60a5fa;
+  --accent-foreground: #04111f;
+
+  --destructive: #f87171;
+  --destructive-foreground: #1a0707;
+
+  --border: rgba(139, 154, 171, 0.28);
+  --input: rgba(139, 154, 171, 0.28);
+  --ring: #2dd4aa;
+
+  --surface: #121a22;
+  --surface-raised: #18222c;
+  --text-secondary: #8b9aab;
+  --text-muted: #5c6b7a;
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+}
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger: var(--danger);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  body {
+    @apply bg-background text-foreground;
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica,
+      Arial, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    overflow: hidden;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+  }
+  /* Frameless-window drag regions (custom titlebar lives in React) */
+  .app-drag {
+    -webkit-app-region: drag;
+  }
+  .app-no-drag {
+    -webkit-app-region: no-drag;
+  }
+}
+
+/* Thin, themed scrollbars */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(139, 154, 171, 0.25);
+  border-radius: 8px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 154, 171, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}

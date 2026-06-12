@@ -57,6 +57,22 @@ export function defaultConfig(): DevConfig {
         hostname: 'phpmyadmin.test',
         options: defaultPhpMyAdminOptions(3306),
       },
+      mailpit: {
+        enabled: true,
+        binary: '',
+        port: 1025,
+        ui_port: 8025,
+      },
+      mongodb: {
+        enabled: true,
+        binary: '',
+        port: 27017,
+        data_dir: '',
+      },
+      python: {
+        enabled: true,
+        binary: '',
+      },
     },
   };
 }

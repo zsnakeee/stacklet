@@ -76,4 +76,30 @@ describe('hosts', () => {
     const trimmed = fs.readFileSync(hostsPath, 'utf8');
     expect(trimmed).not.toMatch(/phpmyadmin\.test/);
   });
+
+  it('never modifies the user’s existing entries outside the managed block', () => {
+    const original = [
+      '127.0.0.1 localhost',
+      '# my custom stuff',
+      '10.0.0.5 internal.test',
+      '127.0.0.1 manual.test  # I added this myself',
+      '',
+    ].join('\r\n');
+    fs.writeFileSync(hostsPath, original, 'utf8');
+
+    // Sync includes a hostname the user already mapped manually (manual.test).
+    hostsSync(['app.test', 'manual.test'], '127.0.0.1', hostsPath);
+    const content = fs.readFileSync(hostsPath, 'utf8');
+
+    // Every pre-existing user line is preserved verbatim — including a custom
+    // IP mapping, a comment, and the user's own manual.test line.
+    expect(content).toContain('127.0.0.1 localhost');
+    expect(content).toContain('# my custom stuff');
+    expect(content).toContain('10.0.0.5 internal.test');
+    expect(content).toContain('127.0.0.1 manual.test  # I added this myself');
+
+    // The managed block still gets our hostnames.
+    expect(content).toContain(HOSTS_MARKER_BEGIN);
+    expect(content).toMatch(/127\.0\.0\.1\s+app\.test/);
+  });
 });

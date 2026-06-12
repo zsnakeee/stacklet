@@ -120,7 +120,8 @@ import {
 } from './windows-env';
 import { isDevMgrCaTrusted } from './ssl-trust';
 import { installRootCertCurrentUser } from '../helper/cert';
-import { hostsFileHasAllEntries } from '../helper/hosts';
+import { hostsFileHasAllEntries, getHostsPath } from '../helper/hosts';
+import { openTerminalCommand } from './site-terminal';
 import { collectTlsSanNames, ensureDevCerts, ensureFullChainCert } from './tls';
 import {
   ensureDataLayout,
@@ -229,6 +230,7 @@ export class Orchestrator {
       configPath: getConfigPath(),
       projectsDir: getProjectsDir(),
       logsDir: getLogsDir(),
+      hostsPath: getHostsPath(),
     };
   }
 
@@ -631,8 +633,31 @@ export class Orchestrator {
     if (!isVersionInstalledOnDisk(serviceId, version)) {
       throw new Error(`${serviceId} ${version} is not installed`);
     }
+    // Stop the currently-running runtime BEFORE repointing to the new version,
+    // otherwise the old binary keeps holding its port (e.g. php-cgi on 9000) and
+    // the freshly-built ServiceManager adopts/conflicts with it → 502s on switch.
+    const targets = this.stopTargetsForBundled(serviceId);
+    const runningNames = new Set(
+      this.runtimeServiceStatuses()
+        .filter((s) => s.state === 'running')
+        .map((s) => s.name),
+    );
+    const wasRunning = targets.filter((t) => runningNames.has(t));
+    if (wasRunning.length > 0) {
+      await this.stop(targets);
+    }
+
     setInstalled(serviceId, version, getInstallDir(serviceId, version));
     await this.reloadAfterBundledChange();
+
+    // Bring the runtime back up on the new version if it had been running.
+    for (const target of wasRunning) {
+      try {
+        await this.startService(target);
+      } catch {
+        // start failures surface via status/rowErrors on the next refresh
+      }
+    }
   }
 
   async setDefaultPhpVersion(version: string): Promise<void> {
@@ -1137,6 +1162,34 @@ export class Orchestrator {
     return runLaravelArtisan(site, args);
   }
 
+  /** Open an interactive `php artisan tinker` terminal in the site, active PHP on PATH. */
+  async openSiteTinker(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    await openTerminalCommand({
+      key: `tinker-${site.name}`,
+      cwd: site.root,
+      pathDirs: phpRoot ? [phpRoot] : [],
+      command: 'php artisan tinker',
+      title: `Tinker — ${site.name}`,
+    });
+  }
+
+  /** Open a plain terminal in the site folder with the active PHP on PATH. */
+  async openSiteTerminal(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    await openTerminalCommand({
+      key: `term-${site.name}`,
+      cwd: site.root,
+      pathDirs: phpRoot ? [phpRoot] : [],
+      command: `echo Stacklet terminal — ${site.name}`,
+      title: `Terminal — ${site.name}`,
+    });
+  }
+
   resolveLogIdForSite(name: string): string | null {
     const site = findSiteByName(this.sites, name);
     if (!site || site.framework !== 'laravel') return null;
@@ -1316,6 +1369,7 @@ export class Orchestrator {
       logsDir: getLogsDir(),
       configPath: getConfigPath(),
       projectsDir: getProjectsDir(),
+      hostsPath: getHostsPath(),
       webServer: this.config.general.web_server,
       sites: this.sites,
       ssl,

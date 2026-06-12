@@ -21,6 +21,8 @@ export class ServiceManager {
   readonly postgres: ManagedProcess;
   readonly redis: ManagedProcess;
   readonly nodejs: ManagedProcess;
+  readonly mailpit: ManagedProcess;
+  readonly mongodb: ManagedProcess;
 
   constructor(config: DevConfig) {
     const nginx = config.services.nginx;
@@ -132,11 +134,56 @@ export class ServiceManager {
       [],
       'nodejs.pid',
     );
+
+    const mailpit = config.services.mailpit;
+    this.mailpit = new ManagedProcess(
+      'mailpit',
+      mailpit.binary,
+      mailpit.binary
+        ? [
+            '--smtp',
+            `127.0.0.1:${mailpit.port}`,
+            '--listen',
+            `127.0.0.1:${mailpit.ui_port}`,
+          ]
+        : [],
+      'mailpit.pid',
+      undefined,
+      { listenPort: mailpit.ui_port },
+    );
+
+    const mongodb = config.services.mongodb;
+    const mongoInstallRoot = mongodb.binary ? path.dirname(path.resolve(mongodb.binary)) : '';
+    this.mongodb = new ManagedProcess(
+      'mongodb',
+      mongodb.binary,
+      mongodb.binary && mongodb.data_dir
+        ? [
+            '--dbpath',
+            path.resolve(mongodb.data_dir),
+            '--port',
+            String(mongodb.port),
+            '--bind_ip',
+            '127.0.0.1',
+          ]
+        : [],
+      'mongodb.pid',
+      mongoInstallRoot || undefined,
+      { listenPort: mongodb.port, dataDir: mongodb.data_dir || undefined },
+    );
   }
 
   /** Processes the engine can start/stop (Node is runtime-only). */
   startable(): ManagedProcess[] {
-    return [this.nginx, this.phpFpm, this.mysql, this.postgres, this.redis];
+    return [
+      this.nginx,
+      this.phpFpm,
+      this.mysql,
+      this.postgres,
+      this.redis,
+      this.mailpit,
+      this.mongodb,
+    ];
   }
 
   all(): ManagedProcess[] {

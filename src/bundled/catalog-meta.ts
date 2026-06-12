@@ -42,4 +42,19 @@ export const SERVICE_META: ServiceMeta[] = [
     name: 'phpMyAdmin',
     description: 'Web UI for MySQL/MariaDB (requires PHP + Nginx)',
   },
+  {
+    id: 'mailpit',
+    name: 'Mailpit',
+    description: 'Local mail catcher — SMTP server + web inbox for app emails',
+  },
+  {
+    id: 'mongodb',
+    name: 'MongoDB',
+    description: 'NoSQL document database server',
+  },
+  {
+    id: 'python',
+    name: 'Python',
+    description: 'Python interpreter (embeddable, for tooling/scripts)',
+  },
 ];

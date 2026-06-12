@@ -67,6 +67,9 @@ function mergeWithDefaults(partial: Partial<DevConfig>): DevConfig {
           ...partial.services?.phpmyadmin?.options,
         },
       },
+      mailpit: { ...base.services.mailpit, ...partial.services?.mailpit },
+      mongodb: { ...base.services.mongodb, ...partial.services?.mongodb },
+      python: { ...base.services.python, ...partial.services?.python },
     },
   };
 }
