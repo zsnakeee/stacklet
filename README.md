@@ -68,6 +68,35 @@ Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache*
 - Startup options: start minimized/maximized, autostart services, launch at Windows login.
 - Branded app + tray icon; global error logging to `…\stacklet\logs\app.log`.
 
+## How Stacklet compares
+
+A feature overview against other popular local PHP stacks. Each tool has a different focus,
+so this is a best-effort snapshot (mid-2026) — corrections via [issues](https://github.com/zsnakeee/stacklet/issues) are welcome.
+
+| Feature | **Stacklet** | Laravel Herd | Laragon | AppServ | XAMPP |
+|---|:---:|:---:|:---:|:---:|:---:|
+| Platform | Windows | macOS, Windows | Windows | Windows | Win / macOS / Linux |
+| Price / license | Free · MIT | Free + paid Pro | Free | Free | Free |
+| Web server | nginx **+** Apache | nginx | Apache + nginx | Apache | Apache |
+| Multiple PHP versions | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Per-site PHP isolation | ✅ | ✅ | 🟡 | ❌ | ❌ |
+| Auto `.test` domains | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Trusted local HTTPS | ✅ | ✅ | ✅ | ❌ | 🟡 manual |
+| MySQL / MariaDB | ✅ | 💲 Pro | ✅ | ✅ | ✅ |
+| PostgreSQL | ✅ | 💲 Pro | 🟡 | ❌ | ❌ |
+| Redis | ✅ | 💲 Pro | 🟡 | ❌ | ❌ |
+| MongoDB | ✅ | ❌ | 🟡 | ❌ | ❌ |
+| Mail catcher (Mailpit) | ✅ | 💲 Pro | ❌ | ❌ | 🟡 Mercury |
+| Node.js | ✅ | 🟡 | ✅ | ❌ | ❌ |
+| nvm + per-project `.nvmrc` | ✅ | ❌ | ❌ | ❌ | ❌ |
+| Python | ✅ | ❌ | 🟡 | ❌ | ❌ |
+| Composer / Laravel scaffolding | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Light / dark UI | ✅ | ✅ | 🟡 | ❌ | ❌ |
+| Multi-language UI (+ RTL) | ✅ | ❌ | 🟡 | ❌ | ❌ |
+| Open source | ✅ | ❌ | 🟡 | ✅ | ✅ |
+
+<sub>✅ built-in · 🟡 partial / via add-on · ❌ not available · 💲 paid tier</sub>
+
 ## Quick start
 
 ```bash
