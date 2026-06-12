@@ -1,4 +1,5 @@
 ﻿import path from 'path';
+import { getDataDir } from '../shared/paths';
 
 /**
  * Shared protocol types for engine <-> privileged helper IPC.
@@ -9,8 +10,11 @@
 
 /**
  * Bump when helper ops or allow-list change so the engine restarts a stale elevated process.
+ * v3: renamed the pipe + token path from `devmgr` to `stacklet` — gives the renamed build a
+ * fresh pipe so a leftover elevated `devmgr` helper (which a non-elevated engine cannot kill)
+ * can no longer answer with a stale token.
  */
-export const HELPER_PROTOCOL_VERSION = 2;
+export const HELPER_PROTOCOL_VERSION = 3;
 
 /** Operations the privileged helper is permitted to execute. */
 export type AllowedOp = 'hosts:add' | 'hosts:remove' | 'hosts:sync' | 'cert:install' | 'ping';
@@ -29,7 +33,7 @@ export const ALLOWED_OPS: ReadonlySet<string> = new Set<AllowedOp>([
  *
  * @property op    - The operation to perform (must be in ALLOWED_OPS).
  * @property args  - Operation-specific arguments (arbitrary key/value pairs).
- * @property token - Shared secret read from %LOCALAPPDATA%\devmgr\helper.token.
+ * @property token - Shared secret read from <data-dir>\helper.token.
  */
 export interface HelperRequest {
   op: string;
@@ -49,17 +53,13 @@ export interface HelperResponse {
 }
 
 /** Named pipe path used by both server and client. */
-export const PIPE_PATH = '\\\\.\\pipe\\devmgr-helper';
+export const PIPE_PATH = '\\\\.\\pipe\\stacklet-helper';
 
 /**
- * The token file location: %LOCALAPPDATA%\devmgr\helper.token
- * Falls back to a temp path on non-Windows for unit-test portability.
+ * The token file location: <data-dir>\helper.token (alongside helper.pid).
+ * Resolves via getDataDir() so it honors a moved/custom data directory and
+ * stays consistent between the engine and the elevated helper process.
  */
 export function getTokenPath(): string {
-  const localAppData =
-    process.env['LOCALAPPDATA'] ??
-    process.env['TMPDIR'] ??
-    process.env['TMP'] ??
-    '/tmp';
-  return path.join(localAppData, 'devmgr', 'helper.token');
+  return path.join(getDataDir(), 'helper.token');
 }
