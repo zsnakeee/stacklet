@@ -12,22 +12,22 @@
   --radius: 0.625rem;
   --titlebar-h: 38px;
 
-  --background: #f4f6f9;
-  --foreground: #0f172a;
+  --background: #f7f9fc;
+  --foreground: #0f1729;
 
   --card: #ffffff;
-  --card-foreground: #0f172a;
+  --card-foreground: #0f1729;
   --popover: #ffffff;
-  --popover-foreground: #0f172a;
+  --popover-foreground: #0f1729;
 
   --primary: #0d9488;
   --primary-foreground: #ffffff;
 
-  --secondary: #eaeef3;
-  --secondary-foreground: #0f172a;
+  --secondary: #eef2f7;
+  --secondary-foreground: #0f1729;
 
-  --muted: #eef2f6;
-  --muted-foreground: #5b6b7d;
+  --muted: #eef2f7;
+  --muted-foreground: #64748b;
 
   --accent: #2563eb;
   --accent-foreground: #ffffff;
@@ -35,37 +35,37 @@
   --destructive: #dc2626;
   --destructive-foreground: #ffffff;
 
-  --border: rgba(15, 23, 42, 0.12);
-  --input: rgba(15, 23, 42, 0.16);
+  --border: rgba(15, 23, 42, 0.09);
+  --input: rgba(15, 23, 42, 0.14);
   --ring: #0d9488;
 
   /* Stacklet extras (not part of shadcn's default set) */
   --surface: #ffffff;
   --surface-raised: #f1f5f9;
   --text-secondary: #475569;
-  --text-muted: #8294a8;
+  --text-muted: #94a3b8;
   --success: #059669;
   --warning: #d97706;
   --danger: #dc2626;
 }
 
 .dark {
-  --background: #070a0d;
-  --foreground: #eef2f6;
+  --background: #0a0e13;
+  --foreground: #eaf0f6;
 
-  --card: #121a22;
-  --card-foreground: #eef2f6;
-  --popover: #0e151c;
-  --popover-foreground: #eef2f6;
+  --card: #131b24;
+  --card-foreground: #eaf0f6;
+  --popover: #10171f;
+  --popover-foreground: #eaf0f6;
 
   --primary: #2dd4aa;
   --primary-foreground: #04130d;
 
-  --secondary: #1a242e;
-  --secondary-foreground: #eef2f6;
+  --secondary: #1b2530;
+  --secondary-foreground: #eaf0f6;
 
-  --muted: #121a22;
-  --muted-foreground: #8b9aab;
+  --muted: #131b24;
+  --muted-foreground: #94a3b8;
 
   --accent: #60a5fa;
   --accent-foreground: #04111f;
@@ -73,14 +73,14 @@
   --destructive: #f87171;
   --destructive-foreground: #1a0707;
 
-  --border: rgba(139, 154, 171, 0.28);
-  --input: rgba(139, 154, 171, 0.28);
+  --border: rgba(148, 163, 184, 0.16);
+  --input: rgba(148, 163, 184, 0.22);
   --ring: #2dd4aa;
 
-  --surface: #121a22;
-  --surface-raised: #18222c;
-  --text-secondary: #8b9aab;
-  --text-muted: #5c6b7a;
+  --surface: #131b24;
+  --surface-raised: #1b2530;
+  --text-secondary: #9aa8b8;
+  --text-muted: #647689;
   --success: #34d399;
   --warning: #fbbf24;
   --danger: #f87171;
