@@ -2,7 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { ensureDir, getGeneratedDir, getLogsDir } from '../shared/paths';
 
-export const APACHE_SITES_CONF_NAME = 'devmgr-apache.conf';
+export const APACHE_SITES_CONF_NAME = 'stacklet-apache.conf';
 
 export function apacheGeneratedDir(): string {
   return path.join(getGeneratedDir(), 'apache');
