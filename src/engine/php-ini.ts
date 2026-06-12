@@ -79,7 +79,9 @@ export function writePhpQuickSettings(iniPath: string, patch: Partial<PhpQuickSe
     }
   }
 
-  fs.writeFileSync(iniPath, lines.join('\n'), 'utf8');
+  // Write CRLF to stay consistent with the extension editor (avoids mixed
+  // line endings in php.ini on Windows).
+  fs.writeFileSync(iniPath, lines.join('\r\n'), 'utf8');
 }
 
 const NOTEPAD_PLUS_PATHS = [

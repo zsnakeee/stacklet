@@ -22,7 +22,7 @@ describe('config store', () => {
   it('creates default config on init', () => {
     const config = initConfig();
     expect(config.general.web_server).toBe('nginx');
-    expect(fs.existsSync(path.join(dataDir, 'devmgr', 'config.toml'))).toBe(true);
+    expect(fs.existsSync(path.join(dataDir, 'stacklet', 'config.toml'))).toBe(true);
   });
 
   it('round-trips park_path', () => {

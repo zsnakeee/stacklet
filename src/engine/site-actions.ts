@@ -3,13 +3,30 @@ import path from 'path';
 import { spawn } from 'child_process';
 import { validateProjectRoot } from './sites-registry';
 
-function runCommand(cmd: string, args: string[], cwd: string): Promise<void> {
+export type CommandProgress = (message: string) => void;
+
+function runCommand(
+  cmd: string,
+  args: string[],
+  cwd: string,
+  onLine?: CommandProgress,
+): Promise<void> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, {
       cwd,
-      stdio: 'inherit',
+      stdio: onLine ? ['ignore', 'pipe', 'pipe'] : 'inherit',
       shell: process.platform === 'win32',
     });
+    if (onLine) {
+      const handle = (buf: Buffer) => {
+        for (const line of buf.toString().split(/\r?\n/)) {
+          const t = line.trim();
+          if (t) onLine(t);
+        }
+      };
+      child.stdout?.on('data', handle);
+      child.stderr?.on('data', handle);
+    }
     child.on('error', reject);
     child.on('close', (code) => {
       if (code === 0) resolve();
@@ -21,6 +38,7 @@ function runCommand(cmd: string, args: string[], cwd: string): Promise<void> {
 export async function createLaravelProject(
   projectsDir: string,
   projectName: string,
+  onProgress?: CommandProgress,
 ): Promise<string> {
   const safeName = projectName.trim().replace(/[^\w.-]/g, '');
   if (!safeName) throw new Error('Project name is required');
@@ -31,7 +49,13 @@ export async function createLaravelProject(
   }
 
   fs.mkdirSync(projectsDir, { recursive: true });
-  await runCommand('composer', ['create-project', 'laravel/laravel', safeName], projectsDir);
+  onProgress?.('Running composer create-project laravel/laravel…');
+  await runCommand(
+    'composer',
+    ['create-project', 'laravel/laravel', safeName],
+    projectsDir,
+    onProgress,
+  );
 
   return target;
 }

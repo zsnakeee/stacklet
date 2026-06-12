@@ -76,19 +76,19 @@ http {
     configureNginxInstall(installRoot);
     const conf = fs.readFileSync(confPath, 'utf8');
 
-    expect(conf).toContain('# dev-mgr');
-    expect(conf).toContain('devmgr-http.conf');
-    expect(conf).toContain('devmgr-sites.conf');
+    expect(conf).toContain('# stacklet');
+    expect(conf).toContain('stacklet-http.conf');
+    expect(conf).toContain('stacklet-sites.conf');
     expect(conf).not.toMatch(/^\s*keepalive_timeout\s/m);
     const httpStart = conf.indexOf('http {');
     const httpEnd = conf.indexOf('\n}', httpStart);
     const httpBlock = conf.slice(httpStart, httpEnd);
     expect(httpBlock).not.toMatch(/^\s*keepalive_timeout\s/m);
-    expect(httpBlock).toContain('devmgr-http.conf');
-    expect(conf).toContain('# dev-mgr: stock welcome disabled');
+    expect(httpBlock).toContain('stacklet-http.conf');
+    expect(conf).toContain('# stacklet: stock welcome disabled');
     expect(conf).not.toMatch(/^\s*server\s*\{[^#]*server_name\s+localhost/m);
 
-    const includeIdx = conf.indexOf('devmgr-sites.conf');
+    const includeIdx = conf.indexOf('stacklet-sites.conf');
     expect(includeIdx).toBeGreaterThan(httpStart);
     expect(includeIdx).toBeLessThan(httpEnd);
   });
@@ -117,9 +117,9 @@ include "${badInclude}";
     const httpEnd = conf.indexOf('\n}', httpStart);
     const httpBlock = conf.slice(httpStart, httpEnd);
     expect(httpBlock).not.toMatch(/^\s*keepalive_timeout\s/m);
-    const includeIdx = conf.indexOf('devmgr-sites.conf');
+    const includeIdx = conf.indexOf('stacklet-sites.conf');
     expect(includeIdx).toBeGreaterThan(httpStart);
     expect(includeIdx).toBeLessThan(httpEnd);
-    expect(conf.slice(httpEnd + 1).trim()).not.toContain('devmgr-sites.conf');
+    expect(conf.slice(httpEnd + 1).trim()).not.toContain('stacklet-sites.conf');
   });
 });

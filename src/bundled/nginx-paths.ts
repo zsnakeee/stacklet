@@ -53,7 +53,7 @@ export function nginxPathsFromInstallRoot(installRoot: string): NginxPaths | nul
   };
 }
 
-const DEVMGR_MARKER = '# dev-mgr';
+const DEVMGR_MARKER = '# stacklet';
 
 /** Index of the closing `}` for the top-level `http { ... }` block. */
 function findHttpBlockEnd(conf: string): number {
@@ -74,12 +74,15 @@ function findHttpBlockEnd(conf: string): number {
   return -1;
 }
 
-/** Remove dev-mgr include blocks (fixes older patches that appended outside `http`). */
+/** Remove our include blocks (matches both legacy "# dev-mgr" and "# stacklet"). */
 function stripDevMgrInclude(conf: string): string {
-  return conf.replace(/\n\s*# dev-mgr\s*\n(?:\s*include\s+"[^"]+"\s*;\s*\n)+/g, '\n');
+  return conf.replace(
+    /\n\s*# (?:dev-mgr|stacklet)\s*\n(?:\s*include\s+"[^"]+"\s*;\s*\n)+/g,
+    '\n',
+  );
 }
 
-/** Directives owned by devmgr-http.conf — strip from main http {} to avoid duplicate errors. */
+/** Directives owned by stacklet-http.conf — strip from main http {} to avoid duplicate errors. */
 const HTTP_DIRECTIVES_IN_SNIPPET = [
   'client_max_body_size',
   'keepalive_timeout',
@@ -109,7 +112,7 @@ function stripManagedHttpDirectives(conf: string): string {
 function generatedIncludePaths(): { http: string; sites: string } {
   return {
     http: devMgrHttpConfPath().replace(/\\/g, '/'),
-    sites: path.join(getGeneratedDir(), 'nginx', 'devmgr-sites.conf').replace(/\\/g, '/'),
+    sites: path.join(getGeneratedDir(), 'nginx', 'stacklet-sites.conf').replace(/\\/g, '/'),
   };
 }
 
@@ -130,7 +133,12 @@ function injectDevMgrIncludes(conf: string, includePaths: string[]): string {
 
 /** Disable the bundled "Welcome to nginx" site on port 80 so named vhosts win. */
 function disableStockWelcomeServer(conf: string): string {
-  if (conf.includes('# dev-mgr: stock welcome disabled')) return conf;
+  if (
+    conf.includes('# stacklet: stock welcome disabled') ||
+    conf.includes('# dev-mgr: stock welcome disabled')
+  ) {
+    return conf;
+  }
 
   const nameIdx = conf.search(/server_name\s+localhost\s*;/);
   if (nameIdx === -1) return conf;
@@ -162,7 +170,7 @@ function disableStockWelcomeServer(conf: string): string {
 
   return (
     conf.slice(0, serverStart) +
-    `# dev-mgr: stock welcome disabled\n${commented}\n` +
+    `# stacklet: stock welcome disabled\n${commented}\n` +
     conf.slice(serverEnd)
   );
 }

@@ -13,6 +13,11 @@ export const SERVICE_META: ServiceMeta[] = [
     description: 'Primary web server with SSL vhosts',
   },
   {
+    id: 'apache',
+    name: 'Apache',
+    description: 'Alternative web server (httpd) — switchable with nginx',
+  },
+  {
     id: 'php',
     name: 'PHP',
     description: 'PHP 7.4 – latest (NTS x64, windows.php.net)',
@@ -41,5 +46,20 @@ export const SERVICE_META: ServiceMeta[] = [
     id: 'phpmyadmin',
     name: 'phpMyAdmin',
     description: 'Web UI for MySQL/MariaDB (requires PHP + Nginx)',
+  },
+  {
+    id: 'mailpit',
+    name: 'Mailpit',
+    description: 'Local mail catcher — SMTP server + web inbox for app emails',
+  },
+  {
+    id: 'mongodb',
+    name: 'MongoDB',
+    description: 'NoSQL document database server',
+  },
+  {
+    id: 'python',
+    name: 'Python',
+    description: 'Python interpreter (embeddable, for tooling/scripts)',
   },
 ];

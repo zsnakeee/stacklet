@@ -1,6 +1,7 @@
 ﻿import fs from 'fs';
 import path from 'path';
 import type { DevConfig } from '../config/types';
+import { getComposerDir, getComposerStatus } from './composer';
 
 export interface EnvPathCandidate {
   id: string;
@@ -93,6 +94,38 @@ export function listEnvPathCandidates(config: DevConfig): EnvPathCandidate[] {
       label: 'Node.js',
       service: 'nodejs',
       dir: resolveBinDir(s.nodejs.binary),
+    });
+  }
+  if (s.python.enabled) {
+    addCandidate(candidates, seen, {
+      id: 'python:bin',
+      label: 'Python',
+      service: 'python',
+      dir: resolveBinDir(s.python.binary),
+    });
+  }
+  if (s.mongodb.enabled) {
+    addCandidate(candidates, seen, {
+      id: 'mongodb:bin',
+      label: 'MongoDB',
+      service: 'mongodb',
+      dir: resolveBinDir(s.mongodb.binary),
+    });
+  }
+  if (s.mailpit.enabled) {
+    addCandidate(candidates, seen, {
+      id: 'mailpit:bin',
+      label: 'Mailpit',
+      service: 'mailpit',
+      dir: resolveBinDir(s.mailpit.binary),
+    });
+  }
+  if (getComposerStatus().installed) {
+    addCandidate(candidates, seen, {
+      id: 'composer:bin',
+      label: 'Composer',
+      service: 'composer',
+      dir: getComposerDir(),
     });
   }
 

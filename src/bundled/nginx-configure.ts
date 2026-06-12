@@ -3,7 +3,7 @@ import path from 'path';
 import type { NginxOptions } from '../config/types';
 import { ensureDir, getGeneratedDir } from '../shared/paths';
 
-export const NGINX_HTTP_CONF_NAME = 'devmgr-http.conf';
+export const NGINX_HTTP_CONF_NAME = 'stacklet-http.conf';
 
 export function devMgrHttpConfPath(): string {
   return path.join(getGeneratedDir(), 'nginx', NGINX_HTTP_CONF_NAME);

@@ -31,12 +31,16 @@ export function getActivePhpVersion(): string | null {
 
 const VERSION_MARKERS: Partial<Record<BundledServiceId, string>> = {
   nginx: 'nginx.exe',
+  apache: 'bin/httpd.exe',
   php: 'php.exe',
   mysql: 'bin/mysqld.exe',
   postgres: 'bin/pg_ctl.exe',
   redis: 'redis-server.exe',
   nodejs: 'node.exe',
   phpmyadmin: 'index.php',
+  mailpit: 'mailpit.exe',
+  mongodb: 'bin/mongod.exe',
+  python: 'python.exe',
 };
 
 /** True when the version folder exists and contains the service binary (or index.php). */
