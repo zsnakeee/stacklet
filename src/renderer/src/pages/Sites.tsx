@@ -141,6 +141,7 @@ export function Sites() {
   const [cloneErr, setCloneErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState('');
+  const [migrateMsg, setMigrateMsg] = useState('');
 
   const q = query.trim().toLowerCase();
   const visible = sites.filter((s) => matches(s, q));
@@ -217,7 +218,15 @@ export function Sites() {
         const def = await stacklet.sitesActions.laragonDir();
         const dir = await stacklet.dialog.pickDirectory(def || undefined);
         if (!dir) return;
-        const res = await stacklet.sitesActions.migrateLaragon(dir);
+        setMigrateMsg('Starting migration…');
+        const off = stacklet.sitesActions.onMigrateProgress((m) => setMigrateMsg(m));
+        let res;
+        try {
+          res = await stacklet.sitesActions.migrateLaragon(dir);
+        } finally {
+          off();
+          setMigrateMsg('');
+        }
         await refresh();
         navigate('/sites');
         const ext = res.phpExtensions?.length
@@ -265,9 +274,19 @@ export function Sites() {
         </Button>
         <Button onClick={pickLinkDir}>{t('sites.addExisting')}</Button>
         <Button onClick={() => setCloneOpen(true)}>{t('sites.cloneGit')}</Button>
-        <Button onClick={migrateLaragon} title="Import all projects from a Laragon (or any) www folder">
+        <Button
+          onClick={migrateLaragon}
+          busy={!!migrateMsg}
+          disabled={!!migrateMsg}
+          title="Import all projects from a Laragon (or any) www folder"
+        >
           Migrate from Laragon
         </Button>
+        {migrateMsg && (
+          <span className="text-xs text-text-muted" aria-live="polite">
+            {migrateMsg}
+          </span>
+        )}
         <Input
           type="search"
           placeholder={t('sites.searchPlaceholder')}

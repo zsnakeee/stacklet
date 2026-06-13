@@ -1821,6 +1821,7 @@ export class Orchestrator {
    */
   async migrateFromLaragon(
     projectsDir: string,
+    onProgress?: (message: string) => void,
   ): Promise<{ added: string[]; skipped: string[]; phpExtensions: string[]; sites: Site[] }> {
     const dir = path.resolve(projectsDir);
     if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
@@ -1832,9 +1833,16 @@ export class Orchestrator {
     const added: string[] = [];
     const skipped: string[] = [];
 
-    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+    const dirs = fs
+      .readdirSync(dir, { withFileTypes: true })
+      .filter((e) => e.isDirectory() && !e.name.startsWith('.'));
+    onProgress?.(`Found ${dirs.length} folder${dirs.length === 1 ? '' : 's'} in ${dir}`);
+
+    let i = 0;
+    for (const entry of dirs) {
+      i += 1;
       const root = path.join(dir, entry.name);
+      onProgress?.(`Importing ${entry.name} (${i}/${dirs.length})…`);
       if (existingRoots.has(root.toLowerCase())) {
         skipped.push(entry.name);
         continue;
@@ -1851,6 +1859,7 @@ export class Orchestrator {
 
     // Best-effort: mirror the PHP extensions Laragon had enabled into the active
     // Stacklet PHP (only ones whose DLL we actually ship — can't break anything).
+    onProgress?.('Importing PHP extensions from Laragon…');
     let phpExtensions: string[] = [];
     try {
       phpExtensions = this.importLaragonPhpExtensions();
@@ -1859,8 +1868,11 @@ export class Orchestrator {
     }
 
     this.refreshSites();
+    onProgress?.('Applying configuration…');
     await this.apply();
+    onProgress?.('Provisioning hosts & SSL certificates…');
     await this.provisionSiteHostsAndSsl();
+    onProgress?.('Done.');
     return { added, skipped, phpExtensions, sites: this.getSites() };
   }
 

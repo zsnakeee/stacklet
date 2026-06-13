@@ -96,6 +96,11 @@ const stackletAPI: StackletAPI = {
     laragonDir: () => ipcRenderer.invoke('stacklet:sites:laragonDir'),
     migrateLaragon: (projectsDir) =>
       ipcRenderer.invoke('stacklet:sites:migrateLaragon', projectsDir),
+    onMigrateProgress: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
+      ipcRenderer.on('stacklet:sites:migrateProgress', handler);
+      return () => ipcRenderer.removeListener('stacklet:sites:migrateProgress', handler);
+    },
     setEnabled: (name, enabled) =>
       ipcRenderer.invoke('stacklet:sites:setEnabled', name, enabled),
     setFavorite: (name, favorite) =>

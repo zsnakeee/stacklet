@@ -181,6 +181,8 @@ export interface StackletAPI {
     migrateLaragon: (
       projectsDir: string,
     ) => Promise<{ added: string[]; skipped: string[]; phpExtensions: string[] }>;
+    /** Subscribe to migration progress messages; returns an unsubscribe fn. */
+    onMigrateProgress: (callback: (message: string) => void) => () => void;
     setEnabled: (name: string, enabled: boolean) => Promise<unknown>;
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;
