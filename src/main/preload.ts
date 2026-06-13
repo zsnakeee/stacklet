@@ -89,6 +89,9 @@ const stackletAPI: StackletAPI = {
       ipcRenderer.invoke('stacklet:sites:setDomain', name, domain, aliases),
     setDocRoot: (name, docRoot) =>
       ipcRenderer.invoke('stacklet:sites:setDocRoot', name, docRoot),
+    setRewrite: (name, patch) =>
+      ipcRenderer.invoke('stacklet:sites:setRewrite', name, patch),
+    openWebConfig: (name) => ipcRenderer.invoke('stacklet:sites:openWebConfig', name),
     setPhpVersion: (name, version) =>
       ipcRenderer.invoke('stacklet:sites:setPhpVersion', name, version),
     setReverb: (name, patch) => ipcRenderer.invoke('stacklet:sites:setReverb', name, patch),

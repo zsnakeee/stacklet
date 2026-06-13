@@ -19,6 +19,20 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import { autoUpdater } from 'electron-updater';
 import { logPrefix } from '../shared/brand';
+import { getDataDir, setDataDirOverride } from '../shared/paths';
+
+/**
+ * Pin the data directory currently in use into the override pointer (which lives
+ * OUTSIDE the install dir and data dir) so an update's silent NSIS reinstall
+ * can't reset the location — the new build resolves the same paths on relaunch.
+ */
+function pinDataDirBeforeInstall(): void {
+  try {
+    setDataDirOverride(getDataDir());
+  } catch (err) {
+    console.warn(`${logPrefix()} updater: could not pin data dir:`, err);
+  }
+}
 
 export type UpdateStatus =
   | { state: 'idle' }
@@ -89,9 +103,12 @@ function wireEvents(getWindow: () => BrowserWindow | null): void {
       bytesPerSecond: p.bytesPerSecond,
     }),
   );
-  autoUpdater.on('update-downloaded', (info) =>
-    broadcast(getWindow, { state: 'downloaded', version: info.version }),
-  );
+  autoUpdater.on('update-downloaded', (info) => {
+    // Pin now so the location survives whether the user clicks install or the
+    // update is applied automatically on the next quit (autoInstallOnAppQuit).
+    pinDataDirBeforeInstall();
+    broadcast(getWindow, { state: 'downloaded', version: info.version });
+  });
   autoUpdater.on('error', (err) =>
     broadcast(getWindow, {
       state: 'error',
@@ -144,6 +161,7 @@ export function registerUpdaterIpc(getWindow: () => BrowserWindow | null): void 
 
   ipcMain.handle('stacklet:update:install', () => {
     if (!app.isPackaged) return;
+    pinDataDirBeforeInstall();
     // Quit and install now. isSilent=false shows the NSIS UI; isForceRunAfter
     // relaunches Stacklet once the update is applied.
     setImmediate(() => autoUpdater.quitAndInstall(false, true));

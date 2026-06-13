@@ -433,6 +433,127 @@ export function SiteDetail() {
           )}
         </div>
       </Section>
+
+      <NginxRewriteSection name={name} detail={detail} onSaved={load} />
     </div>
+  );
+}
+
+const REWRITE_TEMPLATES: { value: NonNullable<SiteDetailData['rewrite']>; label: string }[] = [
+  { value: 'laravel', label: 'Laravel / PHP framework (front controller)' },
+  { value: 'wordpress', label: 'WordPress (pretty permalinks)' },
+  { value: 'spa', label: 'SPA (Vue/React — fallback to index.html)' },
+  { value: 'static', label: 'Static site (404 for missing files)' },
+];
+
+/** Per-site URL rewriting: template + raw nginx directives + open the config. */
+function NginxRewriteSection({
+  name,
+  detail,
+  onSaved,
+}: {
+  name: string;
+  detail: SiteDetailData;
+  onSaved: () => Promise<void> | void;
+}) {
+  const { runAction } = useAction();
+  const { config, refresh } = useStore();
+  const toast = useToast();
+  const isApache = (config?.general?.web_server ?? 'nginx') === 'apache';
+  const defaultTpl = detail.framework === 'wordpress' ? 'wordpress' : 'laravel';
+  const [tpl, setTpl] = useState<NonNullable<SiteDetailData['rewrite']>>(
+    detail.rewrite ?? defaultTpl,
+  );
+  const [extra, setExtra] = useState(detail.nginx_extra ?? '');
+
+  useEffect(() => {
+    setTpl(detail.rewrite ?? defaultTpl);
+    setExtra(detail.nginx_extra ?? '');
+  }, [detail.rewrite, detail.nginx_extra, defaultTpl]);
+
+  return (
+    <Section title="URL rewriting (nginx)">
+      {isApache ? (
+        <p className="text-sm text-text-muted">
+          You’re currently using Apache. Switch to nginx in Settings → Web server to manage these
+          rewrite rules. You can still open the generated config below.
+        </p>
+      ) : (
+        <p className="text-sm text-text-muted">
+          Pick how URLs map to files for this site, or add your own nginx directives.
+        </p>
+      )}
+
+      <div className="mt-3 flex flex-col gap-3">
+        <Field label="Rewrite template">
+          <Select
+            className="max-w-md"
+            value={tpl}
+            disabled={isApache}
+            onChange={(e) => setTpl(e.target.value as NonNullable<SiteDetailData['rewrite']>)}
+          >
+            {REWRITE_TEMPLATES.map((t) => (
+              <option key={t.value} value={t.value}>
+                {t.label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+
+        <Field label="Extra nginx directives (advanced, optional)">
+          <textarea
+            value={extra}
+            disabled={isApache}
+            onChange={(e) => setExtra(e.target.value)}
+            rows={5}
+            spellCheck={false}
+            placeholder={'location /assets/ {\n  expires 30d;\n  add_header Cache-Control "public";\n}'}
+            className="w-full rounded-md border border-input bg-background/60 px-3 py-2 font-mono text-xs text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/60 disabled:opacity-50"
+          />
+        </Field>
+        <p className="text-xs text-text-muted">
+          Injected verbatim into this site’s <code>server {'{}'}</code> block. Invalid directives
+          will fail the nginx reload — use “Open config” to review the result.
+        </p>
+
+        <div className="flex flex-wrap gap-2">
+          <Button
+            variant="primary"
+            size="sm"
+            disabled={isApache}
+            onClick={() =>
+              runAction({
+                key: `site-rewrite-${name}`,
+                label: 'Save rewrite rules',
+                global: true,
+                run: async () => {
+                  await devmgr.sitesActions.setRewrite(name, { rewrite: tpl, nginx_extra: extra });
+                  await refresh();
+                  await onSaved();
+                  toast.success('Rewrite rules applied.');
+                },
+              })
+            }
+          >
+            Save & apply
+          </Button>
+          <Button
+            size="sm"
+            onClick={() =>
+              runAction({
+                key: `site-openconf-${name}`,
+                label: 'Open web config',
+                successToast: false,
+                run: async () => {
+                  await devmgr.sitesActions.openWebConfig(name);
+                },
+              })
+            }
+          >
+            Open config file
+          </Button>
+        </div>
+      </div>
+    </Section>
   );
 }

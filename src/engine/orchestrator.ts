@@ -72,6 +72,7 @@ import {
   type PhpExtensionInfo,
 } from './php-extensions';
 import { installPeclExtension, listPeclInstallable } from './pecl-installer';
+import { getIoncubeStatus, installIoncube, setIoncubeEnabled } from './ioncube';
 import { detectPhpBuild } from './php-build';
 import {
   getPhpIniForVersion,
@@ -167,12 +168,14 @@ import {
   ensureDataLayout,
   getConfigPath,
   getDataDir,
+  getGeneratedDir,
   getLogsDir,
   getProjectsDir,
   migrateLegacyDataDir,
   setDataDirOverride,
   setProjectsDirOverride,
 } from '../shared/paths';
+import { apacheSitesConfPath } from '../bundled/apache-configure';
 
 export type AppSettingsPatch = {
   general?: {
@@ -184,6 +187,7 @@ export type AppSettingsPatch = {
     launch_on_login?: boolean;
     xdebug?: boolean;
     enhanced_terminal?: boolean;
+    default_site?: string;
   };
   services?: Partial<{
     nginx: { enabled?: boolean };
@@ -523,6 +527,9 @@ export class Orchestrator {
       }
       if (patch.general.enhanced_terminal !== undefined) {
         this.config.general.enhanced_terminal = patch.general.enhanced_terminal;
+      }
+      if (patch.general.default_site !== undefined) {
+        this.config.general.default_site = patch.general.default_site;
       }
     }
     const stopRuntime: string[] = [];
@@ -1252,7 +1259,12 @@ export class Orchestrator {
     const resolved = this.resolvePhpVersion(version);
     const info = getPhpIniForVersion(resolved);
     if (!info) throw new Error(`php.ini not found for PHP ${resolved}`);
-    setPhpExtensionEnabled(info.phpRoot, name, enabled);
+    // ionCube is a zend_extension with a non-standard DLL name; toggle it directly.
+    if (name === 'ioncube') {
+      setIoncubeEnabled(info.phpRoot, enabled);
+    } else {
+      setPhpExtensionEnabled(info.phpRoot, name, enabled);
+    }
     await this.apply();
   }
 
@@ -1268,10 +1280,20 @@ export class Orchestrator {
     const resolved = this.resolvePhpVersion(version);
     const info = getPhpIniForVersion(resolved);
     if (!info) return null;
+    const ic = getIoncubeStatus(info.phpRoot);
     return {
       version: resolved,
       build: detectPhpBuild(info.phpRoot),
-      packages: listPeclInstallable(info.phpRoot),
+      packages: [
+        ...listPeclInstallable(info.phpRoot),
+        {
+          peclName: 'ioncube',
+          label: 'ionCube Loader — run ionCube-encoded PHP',
+          iniName: 'ioncube',
+          dllPresent: ic.dllPresent,
+          enabled: ic.enabled,
+        },
+      ],
     };
   }
 
@@ -1279,7 +1301,10 @@ export class Orchestrator {
     const resolved = this.resolvePhpVersion(version);
     const info = getPhpIniForVersion(resolved);
     if (!info) throw new Error(`php.ini not found for PHP ${resolved}`);
-    const name = await installPeclExtension(info.phpRoot, peclName);
+    const name =
+      peclName === 'ioncube'
+        ? await installIoncube(info.phpRoot)
+        : await installPeclExtension(info.phpRoot, peclName);
     await this.apply();
     await this.restartPhp();
     return name;
@@ -1674,6 +1699,32 @@ export class Orchestrator {
     this.refreshSites();
     await this.apply();
     return this.getSites();
+  }
+
+  /** Set a site's URL-rewrite template and/or raw extra nginx directives. */
+  async setSiteRewrite(
+    name: string,
+    patch: { rewrite?: Site['rewrite']; nginx_extra?: string },
+  ): Promise<Site[]> {
+    const update: Partial<Site> = {};
+    if (patch.rewrite !== undefined) update.rewrite = patch.rewrite;
+    if (patch.nginx_extra !== undefined) update.nginx_extra = patch.nginx_extra;
+    updateRegisteredSite(name, update);
+    this.refreshSites();
+    await this.apply();
+    return this.getSites();
+  }
+
+  /** Open the generated web-server config (the file holding this site's vhost). */
+  openSiteWebConfig(name: string): { path: string } {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    const configPath =
+      (this.config.general.web_server ?? 'nginx') === 'apache'
+        ? apacheSitesConfPath()
+        : path.join(getGeneratedDir(), 'nginx', 'stacklet-sites.conf');
+    openNginxConfInEditor(configPath);
+    return { path: configPath };
   }
 
   /** Isolate a site to a specific installed PHP version (null = default). */

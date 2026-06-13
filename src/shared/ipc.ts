@@ -140,6 +140,11 @@ export interface StackletAPI {
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;
     setDocRoot: (name: string, docRoot: string | null) => Promise<unknown>;
+    setRewrite: (
+      name: string,
+      patch: { rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa'; nginx_extra?: string },
+    ) => Promise<unknown>;
+    openWebConfig: (name: string) => Promise<{ path: string }>;
     setPhpVersion: (name: string, version: string | null) => Promise<unknown>;
     setReverb: (
       name: string,
@@ -266,6 +271,7 @@ export interface StackletAPI {
         launch_on_login?: boolean;
         xdebug?: boolean;
         enhanced_terminal?: boolean;
+        default_site?: string;
       };
       services?: Record<string, { enabled?: boolean }>;
     }) => Promise<unknown>;

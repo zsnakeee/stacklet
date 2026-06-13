@@ -348,6 +348,19 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     },
   );
   ipcMain.handle(
+    'stacklet:sites:setRewrite',
+    async (_e, name: string, patch: { rewrite?: string; nginx_extra?: string }) => {
+      const sites = await getEngine().setSiteRewrite(
+        name,
+        patch as { rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa'; nginx_extra?: string },
+      );
+      return { sites, status: await getEngine().status() };
+    },
+  );
+  ipcMain.handle('stacklet:sites:openWebConfig', (_e, name: string) =>
+    getEngine().openSiteWebConfig(name),
+  );
+  ipcMain.handle(
     'stacklet:sites:setPhpVersion',
     async (_e, name: string, version: string | null) => {
       const sites = await getEngine().setSitePhpVersion(name, version);

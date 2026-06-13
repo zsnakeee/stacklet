@@ -160,6 +160,8 @@ export interface DevConfig {
     xdebug?: boolean;
     /** Use Cmder/Clink (rich tab completion) in Stacklet-opened terminals (default true). */
     enhanced_terminal?: boolean;
+    /** Site name served at http://127.0.0.1/ (unmatched host). Empty = Stacklet dashboard. */
+    default_site?: string;
   };
   services: {
     nginx: NginxServiceConfig;
@@ -197,4 +199,8 @@ export interface Site {
   reverb?: SiteReverbConfig;
   /** Isolated PHP version for this site (empty/undefined = use the default). */
   php_version?: string;
+  /** URL-rewrite template for the nginx `location /` block (default derived from framework). */
+  rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa';
+  /** Raw extra nginx directives injected into the server block (advanced). */
+  nginx_extra?: string;
 }
