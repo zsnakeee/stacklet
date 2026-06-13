@@ -14,6 +14,7 @@ import { PhpSettings } from '@/pages/service/PhpSettings';
 import { MysqlSettings } from '@/pages/service/MysqlSettings';
 import { NginxSettings } from '@/pages/service/NginxSettings';
 import { PmaSettings } from '@/pages/service/PmaSettings';
+import { RedisSettings } from '@/pages/service/RedisSettings';
 
 export function ServiceDetail() {
   const { id = '' } = useParams();
@@ -332,6 +333,8 @@ export function ServiceDetail() {
             <NginxSettings version={selected} />
           ) : id === 'phpmyadmin' ? (
             <PmaSettings version={selected} />
+          ) : id === 'redis' ? (
+            <RedisSettings />
           ) : (
             <table className="text-sm">
               <tbody>

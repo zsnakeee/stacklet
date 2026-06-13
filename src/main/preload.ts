@@ -75,6 +75,12 @@ const stackletAPI: StackletAPI = {
     openConf: (version) => ipcRenderer.invoke('stacklet:nginx:openConf', version),
     restart: () => ipcRenderer.invoke('stacklet:nginx:restart'),
   },
+  redis: {
+    getSettings: () => ipcRenderer.invoke('stacklet:redis:settings'),
+    saveSettings: (patch) => ipcRenderer.invoke('stacklet:redis:saveSettings', patch),
+    openConf: () => ipcRenderer.invoke('stacklet:redis:openConf'),
+    restart: () => ipcRenderer.invoke('stacklet:redis:restart'),
+  },
   sitesActions: {
     createLaravel: (name) => ipcRenderer.invoke('stacklet:sites:createLaravel', name),
     linkExisting: (sourcePath, projectName) =>

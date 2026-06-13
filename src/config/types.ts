@@ -86,6 +86,14 @@ export interface RedisServiceConfig {
   config: string;
   port: number;
   installed_version?: string;
+  /** requirepass — the password clients must AUTH with (empty = no auth). */
+  password?: string;
+  /** maxmemory cap, e.g. "256mb" (empty = unlimited). */
+  maxmemory?: string;
+  /** eviction policy when maxmemory is reached, e.g. "allkeys-lru". */
+  maxmemory_policy?: string;
+  /** Enable the append-only file for persistence. */
+  appendonly?: boolean;
 }
 
 /** phpMyAdmin config.inc.php + dev-mgr site hostname. */

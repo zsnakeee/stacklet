@@ -7,9 +7,9 @@ import {
   IconButton,
   Input,
   Section,
-  Select,
   Toggle,
 } from '@/components/ui/primitives';
+import { Dropdown } from '@/components/ui/Dropdown';
 import { Icon } from '@/components/Icon';
 import { useAction } from '@/lib/action';
 import { devmgr } from '@/lib/devmgr';
@@ -396,29 +396,27 @@ export function SiteDetail() {
 
           <div className="mt-2 flex flex-col gap-2">
             <Field label="PHP version (isolate this site)">
-              <Select
+              <Dropdown
                 className="max-w-xs"
+                ariaLabel="Site PHP version"
                 value={detail.php_version ?? ''}
-                onChange={(e) =>
+                options={[
+                  { value: '', label: 'Default (global PHP)' },
+                  ...phpVersions.map((v) => ({ value: v, label: `PHP ${v}` })),
+                ]}
+                onChange={(v) =>
                   runAction({
                     key: `site-php-${name}`,
                     label: 'Set site PHP version',
                     run: async () => {
-                      await devmgr.sitesActions.setPhpVersion(name, e.target.value || null);
+                      await devmgr.sitesActions.setPhpVersion(name, v || null);
                       await refresh();
                       await load();
                       setCfgStatus({ text: 'Site PHP version updated.', ok: true });
                     },
                   })
                 }
-              >
-                <option value="">Default (global PHP)</option>
-                {phpVersions.map((v) => (
-                  <option key={v} value={v}>
-                    PHP {v}
-                  </option>
-                ))}
-              </Select>
+              />
             </Field>
             <p className="text-xs text-text-muted">
               Isolating to a non-default version runs a dedicated PHP process for this site (like{' '}
@@ -486,18 +484,14 @@ function NginxRewriteSection({
 
       <div className="mt-3 flex flex-col gap-3">
         <Field label="Rewrite template">
-          <Select
+          <Dropdown
             className="max-w-md"
+            ariaLabel="Rewrite template"
             value={tpl}
             disabled={isApache}
-            onChange={(e) => setTpl(e.target.value as NonNullable<SiteDetailData['rewrite']>)}
-          >
-            {REWRITE_TEMPLATES.map((t) => (
-              <option key={t.value} value={t.value}>
-                {t.label}
-              </option>
-            ))}
-          </Select>
+            options={REWRITE_TEMPLATES.map((t) => ({ value: t.value, label: t.label }))}
+            onChange={(v) => setTpl(v)}
+          />
         </Field>
 
         <Field label="Extra nginx directives (advanced, optional)">
