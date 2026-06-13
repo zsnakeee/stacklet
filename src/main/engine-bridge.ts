@@ -298,6 +298,11 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     await getEngine().restartNginx();
     return getEngine().status();
   });
+  ipcMain.handle('stacklet:ports:get', () => getEngine().getServicePorts());
+  ipcMain.handle('stacklet:ports:set', async (_e, patch: Record<string, number>) => {
+    await getEngine().setServicePorts(patch);
+    return { ports: getEngine().getServicePorts(), status: await getEngine().status() };
+  });
   ipcMain.handle('stacklet:redis:settings', () => getEngine().getRedisSettings());
   ipcMain.handle(
     'stacklet:redis:saveSettings',

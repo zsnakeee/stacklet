@@ -48,6 +48,20 @@ export interface CmderInfo {
   initBat: string;
 }
 
+/** Editable listen ports for each service (Settings → Services → Ports). */
+export interface ServicePorts {
+  nginxHttp: number;
+  nginxSsl: number;
+  apacheHttp: number;
+  apacheSsl: number;
+  mysql: number;
+  postgres: number;
+  redis: number;
+  mailpitSmtp: number;
+  mailpitUi: number;
+  mongodb: number;
+}
+
 export interface StackletAPI {
   status: () => Promise<unknown>;
   statusLive: () => Promise<{
@@ -121,6 +135,10 @@ export interface StackletAPI {
     openConf: (version?: string) => Promise<void>;
     restart: () => Promise<unknown>;
   };
+  ports: {
+    get: () => Promise<ServicePorts>;
+    set: (patch: Partial<ServicePorts>) => Promise<unknown>;
+  };
   redis: {
     getSettings: () => Promise<{
       port: number;
@@ -162,7 +180,7 @@ export interface StackletAPI {
     /** Bulk-import each subfolder of projectsDir as a site. */
     migrateLaragon: (
       projectsDir: string,
-    ) => Promise<{ added: string[]; skipped: string[] }>;
+    ) => Promise<{ added: string[]; skipped: string[]; phpExtensions: string[] }>;
     setEnabled: (name: string, enabled: boolean) => Promise<unknown>;
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;

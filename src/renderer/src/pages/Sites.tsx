@@ -220,11 +220,15 @@ export function Sites() {
         const res = await stacklet.sitesActions.migrateLaragon(dir);
         await refresh();
         navigate('/sites');
+        const ext = res.phpExtensions?.length
+          ? ` · enabled ${res.phpExtensions.length} PHP extension${res.phpExtensions.length === 1 ? '' : 's'}`
+          : '';
         const msg =
           `Imported ${res.added.length} project${res.added.length === 1 ? '' : 's'}` +
           (res.skipped.length ? ` · skipped ${res.skipped.length}` : '') +
+          ext +
           '.';
-        if (res.added.length) toast.success(msg);
+        if (res.added.length || res.phpExtensions?.length) toast.success(msg);
         else toast.info(res.skipped.length ? `Nothing new — ${msg}` : 'No projects found in that folder.');
       },
     });

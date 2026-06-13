@@ -77,6 +77,10 @@ const stackletAPI: StackletAPI = {
     openConf: (version) => ipcRenderer.invoke('stacklet:nginx:openConf', version),
     restart: () => ipcRenderer.invoke('stacklet:nginx:restart'),
   },
+  ports: {
+    get: () => ipcRenderer.invoke('stacklet:ports:get'),
+    set: (patch) => ipcRenderer.invoke('stacklet:ports:set', patch),
+  },
   redis: {
     getSettings: () => ipcRenderer.invoke('stacklet:redis:settings'),
     saveSettings: (patch) => ipcRenderer.invoke('stacklet:redis:saveSettings', patch),

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CmderInfo, NgrokInfo, UpdateStatus } from '@shared/ipc';
+import type { CmderInfo, NgrokInfo, ServicePorts, UpdateStatus } from '@shared/ipc';
 import {
   Button,
   Empty,
@@ -485,6 +485,8 @@ export function Settings() {
           </p>
         )}
       </Section>
+
+      <PortsSection />
 
       <Section title={t('settings.sections.tools')}>
         <Hint>{t('settings.tools.hint')}</Hint>
@@ -1113,6 +1115,91 @@ function TerminalSection() {
         </Button>
       </div>
       {progress && <p className="mt-2 text-xs text-text-muted">{progress}</p>}
+    </Section>
+  );
+}
+
+/** Edit service listen ports. */
+const PORT_FIELDS: { key: keyof ServicePorts; label: string }[] = [
+  { key: 'nginxHttp', label: 'Nginx HTTP' },
+  { key: 'nginxSsl', label: 'Nginx HTTPS' },
+  { key: 'apacheHttp', label: 'Apache HTTP' },
+  { key: 'apacheSsl', label: 'Apache HTTPS' },
+  { key: 'mysql', label: 'MySQL / MariaDB' },
+  { key: 'postgres', label: 'PostgreSQL' },
+  { key: 'redis', label: 'Redis' },
+  { key: 'mailpitSmtp', label: 'Mailpit SMTP' },
+  { key: 'mailpitUi', label: 'Mailpit web UI' },
+  { key: 'mongodb', label: 'MongoDB' },
+];
+
+/** Manage the listen port of each service. */
+function PortsSection() {
+  const { runAction } = useAction();
+  const { refresh } = useStore();
+  const toast = useToast();
+  const [ports, setPorts] = useState<ServicePorts | null>(null);
+  const [edited, setEdited] = useState<Record<string, string>>({});
+
+  const load = async () => {
+    const p = await devmgr.ports.get();
+    setPorts(p);
+    setEdited(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])));
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  if (!ports) return null;
+
+  return (
+    <Section title="Ports">
+      <Hint>
+        Change the port each service listens on. Saving re-writes the configs and restarts any
+        running service so the new ports take effect.
+      </Hint>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {PORT_FIELDS.map((f) => (
+          <Field key={f.key} label={f.label} inline>
+            <Input
+              className="max-w-28"
+              inputMode="numeric"
+              value={edited[f.key] ?? ''}
+              onChange={(e) => setEdited((prev) => ({ ...prev, [f.key]: e.target.value }))}
+            />
+          </Field>
+        ))}
+      </div>
+      <div className="mt-4">
+        <Button
+          variant="primary"
+          onClick={() =>
+            runAction({
+              key: 'save-ports',
+              label: 'Save ports',
+              global: true,
+              run: async () => {
+                const patch: Partial<ServicePorts> = {};
+                for (const f of PORT_FIELDS) {
+                  const n = Number(edited[f.key]);
+                  if (Number.isFinite(n) && n > 0 && n !== ports[f.key]) patch[f.key] = n;
+                }
+                if (Object.keys(patch).length === 0) {
+                  toast.info('No port changes to save.');
+                  return;
+                }
+                await devmgr.ports.set(patch);
+                await load();
+                await refresh();
+                toast.success('Ports saved and services restarted.');
+              },
+            })
+          }
+        >
+          Save &amp; restart
+        </Button>
+      </div>
     </Section>
   );
 }

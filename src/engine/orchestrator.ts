@@ -1669,6 +1669,75 @@ export class Orchestrator {
     openNginxConfInEditor(conf);
   }
 
+  /** Current listen ports for every manageable service. */
+  getServicePorts(): {
+    nginxHttp: number;
+    nginxSsl: number;
+    apacheHttp: number;
+    apacheSsl: number;
+    mysql: number;
+    postgres: number;
+    redis: number;
+    mailpitSmtp: number;
+    mailpitUi: number;
+    mongodb: number;
+  } {
+    const s = this.config.services;
+    return {
+      nginxHttp: s.nginx.port,
+      nginxSsl: s.nginx.ssl_port,
+      apacheHttp: s.apache.port,
+      apacheSsl: s.apache.ssl_port,
+      mysql: s.mysql.port,
+      postgres: s.postgres.port,
+      redis: s.redis.port,
+      mailpitSmtp: s.mailpit.port,
+      mailpitUi: s.mailpit.ui_port,
+      mongodb: s.mongodb.port,
+    };
+  }
+
+  /** Update service listen ports, re-render configs, and restart running services. */
+  async setServicePorts(patch: Partial<ReturnType<Orchestrator['getServicePorts']>>): Promise<void> {
+    const s = this.config.services;
+    const set = (v: number | undefined, assign: (n: number) => void): void => {
+      if (typeof v === 'number' && Number.isFinite(v) && v > 0 && v <= 65535) assign(v);
+    };
+    set(patch.nginxHttp, (n) => (s.nginx.port = n));
+    set(patch.nginxSsl, (n) => (s.nginx.ssl_port = n));
+    set(patch.apacheHttp, (n) => (s.apache.port = n));
+    set(patch.apacheSsl, (n) => (s.apache.ssl_port = n));
+    set(patch.mysql, (n) => (s.mysql.port = n));
+    set(patch.postgres, (n) => (s.postgres.port = n));
+    set(patch.redis, (n) => (s.redis.port = n));
+    set(patch.mailpitSmtp, (n) => (s.mailpit.port = n));
+    set(patch.mailpitUi, (n) => (s.mailpit.ui_port = n));
+    set(patch.mongodb, (n) => (s.mongodb.port = n));
+
+    saveConfig(this.config);
+    this.services = new ServiceManager(this.config);
+
+    // Restart anything currently running so the new ports take effect.
+    const running: string[] = [];
+    for (const name of ['nginx', 'apache', 'php-fpm', 'mysql', 'postgres', 'redis', 'mongodb', 'mailpit']) {
+      try {
+        const svc = this.getService(name);
+        if (svc.isConfigured && svc.status.state === 'running') running.push(name);
+      } catch {
+        // unknown/unconfigured — ignore
+      }
+    }
+    await this.apply();
+    for (const name of running) {
+      try {
+        await this.stopService(name);
+        await this.startService(name);
+      } catch (err) {
+        console.warn(`${logPrefix()} restart ${name} after port change:`, err);
+      }
+    }
+  }
+
   private markPhpAutoRestart(enabled: boolean): void {
     this.phpAutoRestart = enabled;
     if (enabled) {
@@ -1752,7 +1821,7 @@ export class Orchestrator {
    */
   async migrateFromLaragon(
     projectsDir: string,
-  ): Promise<{ added: string[]; skipped: string[]; sites: Site[] }> {
+  ): Promise<{ added: string[]; skipped: string[]; phpExtensions: string[]; sites: Site[] }> {
     const dir = path.resolve(projectsDir);
     if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
       throw new Error(`Folder not found: ${dir}`);
@@ -1780,10 +1849,64 @@ export class Orchestrator {
       }
     }
 
+    // Best-effort: mirror the PHP extensions Laragon had enabled into the active
+    // Stacklet PHP (only ones whose DLL we actually ship — can't break anything).
+    let phpExtensions: string[] = [];
+    try {
+      phpExtensions = this.importLaragonPhpExtensions();
+    } catch {
+      phpExtensions = [];
+    }
+
     this.refreshSites();
     await this.apply();
     await this.provisionSiteHostsAndSsl();
-    return { added, skipped, sites: this.getSites() };
+    return { added, skipped, phpExtensions, sites: this.getSites() };
+  }
+
+  /**
+   * Read enabled PHP extensions from Laragon's php.ini and enable the matching
+   * ones in Stacklet's active PHP (where the DLL exists). Returns the names
+   * newly enabled. Can't copy PHP binaries — Stacklet manages its own builds.
+   */
+  private importLaragonPhpExtensions(): string[] {
+    const phpRoot = 'C:\\laragon\\bin\\php';
+    if (!fs.existsSync(phpRoot)) return [];
+    // Pick the newest Laragon PHP version dir that has a php.ini.
+    const iniPath = fs
+      .readdirSync(phpRoot, { withFileTypes: true })
+      .filter((e) => e.isDirectory())
+      .map((e) => path.join(phpRoot, e.name, 'php.ini'))
+      .filter((p) => fs.existsSync(p))
+      .sort()
+      .pop();
+    if (!iniPath) return [];
+
+    const ini = fs.readFileSync(iniPath, 'utf8');
+    const wanted = new Set<string>();
+    for (const line of ini.split(/\r?\n/)) {
+      const m = /^\s*extension\s*=\s*(?:php_)?([A-Za-z0-9_]+)(?:\.dll)?\s*$/i.exec(line);
+      if (m) wanted.add(m[1].toLowerCase());
+    }
+    if (wanted.size === 0) return [];
+
+    const target = getPhpIniForVersion(this.resolvePhpVersion());
+    if (!target) return [];
+    const available = new Map(
+      listPhpExtensions(target.phpRoot).map((e) => [e.name.toLowerCase(), e]),
+    );
+    const enabled: string[] = [];
+    for (const name of wanted) {
+      const ext = available.get(name);
+      if (!ext || ext.enabled || name === 'xdebug') continue;
+      try {
+        setPhpExtensionEnabled(target.phpRoot, ext.name, true, { verify: false });
+        enabled.push(ext.name);
+      } catch {
+        // skip extensions that won't load
+      }
+    }
+    return enabled;
   }
 
   /** Default Laragon projects folder if Laragon is installed (else empty). */
