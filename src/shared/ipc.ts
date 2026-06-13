@@ -235,7 +235,7 @@ export interface StackletAPI {
         path_in_env?: boolean;
         path_env_selected?: string[];
         start_minimized?: boolean;
-        start_maximized?: boolean;
+        close_to_tray?: boolean;
         autostart?: boolean;
         launch_on_login?: boolean;
         xdebug?: boolean;
@@ -246,9 +246,41 @@ export interface StackletAPI {
     relocateDataDir: (
       newDir: string,
     ) => Promise<{ ok: boolean; message: string; path: string }>;
+    /** Point Stacklet at an existing data folder from a previous install (no move). */
+    useExistingDataDir: (
+      dir: string,
+    ) => Promise<{ ok: boolean; message: string; path: string }>;
     setProjectsDir: (dir: string | null) => Promise<unknown>;
   };
+  update: {
+    /** Current app version + last known update status (supported=false in dev). */
+    current: () => Promise<{ version: string; status: UpdateStatus; supported: boolean }>;
+    /** Ask GitHub whether a newer release exists. */
+    check: () => Promise<UpdateStatus>;
+    /** Download the available update (installer + blockmap delta). */
+    download: () => Promise<UpdateStatus>;
+    /** Quit and install a downloaded update, then relaunch. */
+    install: () => void;
+    /** Subscribe to update status pushes; returns an unsubscribe fn. */
+    onStatus: (callback: (status: UpdateStatus) => void) => () => void;
+  };
 }
+
+/** Auto-update lifecycle status pushed from the main process. */
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; version: string; notes?: string }
+  | { state: 'not-available'; version: string }
+  | {
+      state: 'downloading';
+      percent: number;
+      transferred: number;
+      total: number;
+      bytesPerSecond: number;
+    }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; message: string };
 
 /** @deprecated Use {@link StackletAPI}. */
 export type DevmgrAPI = StackletAPI;

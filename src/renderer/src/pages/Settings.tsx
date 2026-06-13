@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { UpdateStatus } from '@shared/ipc';
 import {
   Button,
   Empty,
@@ -40,7 +41,7 @@ export function Settings() {
   const [serviceEnabled, setServiceEnabled] = useState<Record<string, boolean>>({});
   const [startup, setStartup] = useState({
     start_minimized: false,
-    start_maximized: false,
+    close_to_tray: true,
     autostart: true,
     launch_on_login: false,
   });
@@ -81,7 +82,7 @@ export function Settings() {
     setTldInput(config?.general?.tld ?? 'test');
     setStartup({
       start_minimized: config?.general?.start_minimized === true,
-      start_maximized: config?.general?.start_maximized === true,
+      close_to_tray: config?.general?.close_to_tray !== false,
       autostart: config?.general?.autostart !== false,
       launch_on_login: config?.general?.launch_on_login === true,
     });
@@ -115,7 +116,7 @@ export function Settings() {
         <Hint>{t('settings.language.hint')}</Hint>
         <div className="mt-3">
           <Field label={t('settings.language.label')} inline>
-            <LanguageMenu align="start" />
+            <LanguageMenu align="end" />
           </Field>
         </div>
       </Section>
@@ -126,6 +127,8 @@ export function Settings() {
           <span className="font-mono text-text-secondary">v{__APP_VERSION__}</span>
         </div>
       </Section>
+
+      <UpdatesSection />
 
       <Section title="Paths">
         <dl className="flex flex-col">
@@ -162,6 +165,32 @@ export function Settings() {
           <Hint className="mt-1">
             Pick an empty folder — Stacklet stops services, moves its data there, then asks you to
             restart.
+          </Hint>
+        </div>
+        <div className="mt-3">
+          <Button
+            size="sm"
+            onClick={() =>
+              runAction({
+                key: 'use-existing-data',
+                label: 'Use existing data folder',
+                global: true,
+                successToast: false,
+                run: async () => {
+                  const dir = await devmgr.dialog.pickDirectory();
+                  if (!dir) return;
+                  const res = await devmgr.settings.useExistingDataDir(dir);
+                  toast.success(res.message);
+                },
+              })
+            }
+          >
+            Use existing data folder…
+          </Button>
+          <Hint className="mt-1">
+            Already have a Stacklet data folder from a previous install? Point Stacklet at it (no
+            files are moved), then restart. The folder must already contain Stacklet data
+            (config.toml, services, or certs).
           </Hint>
         </div>
         <div className="mt-3">
@@ -236,9 +265,9 @@ export function Settings() {
             onChange={(c) => setStartup((s) => ({ ...s, start_minimized: c }))}
           />
           <Toggle
-            label="Start maximized"
-            checked={startup.start_maximized}
-            onChange={(c) => setStartup((s) => ({ ...s, start_maximized: c }))}
+            label="Keep running in the tray when I close the window (otherwise closing exits Stacklet)"
+            checked={startup.close_to_tray}
+            onChange={(c) => setStartup((s) => ({ ...s, close_to_tray: c }))}
           />
           <Toggle
             label="Auto-start services on launch"
@@ -743,6 +772,137 @@ function NodeNvmSection() {
           )}
         </>
       )}
+    </Section>
+  );
+}
+
+function formatMB(bytes: number): string {
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
+
+/** Auto-update: show current version, check GitHub, download + install. */
+function UpdatesSection() {
+  const toast = useToast();
+  const [version, setVersion] = useState<string>(__APP_VERSION__);
+  const [supported, setSupported] = useState(true);
+  const [status, setStatus] = useState<UpdateStatus>({ state: 'idle' });
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const cur = await devmgr.update.current();
+        setVersion(cur.version);
+        setSupported(cur.supported);
+        setStatus(cur.status);
+      } catch {
+        // ignore — keep defaults
+      }
+    })();
+    const off = devmgr.update.onStatus((s) => {
+      setStatus(s);
+      if (s.state !== 'checking' && s.state !== 'downloading') setBusy(false);
+    });
+    return off;
+  }, []);
+
+  const check = async () => {
+    setBusy(true);
+    try {
+      await devmgr.update.check();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
+
+  const download = async () => {
+    setBusy(true);
+    try {
+      await devmgr.update.download();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+      setBusy(false);
+    }
+  };
+
+  const renderStatus = () => {
+    switch (status.state) {
+      case 'checking':
+        return <p className="text-sm text-text-muted">Checking for updates…</p>;
+      case 'available':
+        return (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-success">
+              Version {status.version} is available (you have {version}).
+            </p>
+            {status.notes && (
+              <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background/50 p-2 text-xs text-text-secondary">
+                {status.notes}
+              </pre>
+            )}
+            <div>
+              <Button size="sm" variant="primary" busy={busy} onClick={download}>
+                Download update
+              </Button>
+            </div>
+          </div>
+        );
+      case 'not-available':
+        return <p className="text-sm text-text-secondary">You’re on the latest version.</p>;
+      case 'downloading':
+        return (
+          <p className="text-sm text-text-secondary">
+            Downloading… {Math.round(status.percent)}% ({formatMB(status.transferred)} /{' '}
+            {formatMB(status.total)})
+          </p>
+        );
+      case 'downloaded':
+        return (
+          <div className="flex flex-col gap-2">
+            <p className="text-sm text-success">
+              Version {status.version} downloaded and ready to install.
+            </p>
+            <div>
+              <Button size="sm" variant="primary" onClick={() => devmgr.update.install()}>
+                Restart &amp; install
+              </Button>
+            </div>
+          </div>
+        );
+      case 'error':
+        return <p className="text-sm text-warning">{status.message}</p>;
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Section title="Updates">
+      <Hint>
+        Stacklet checks GitHub for new releases. Updates are optional — the app works fully offline
+        and never updates without your go-ahead.
+      </Hint>
+      <div className="mt-3 flex items-center justify-between py-1 text-sm">
+        <span className="text-text-muted">Current version</span>
+        <span className="font-mono text-text-secondary">v{version}</span>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <Button
+          size="sm"
+          busy={busy && status.state === 'checking'}
+          disabled={!supported || busy}
+          onClick={check}
+        >
+          Check for updates
+        </Button>
+        {!supported && (
+          <span className="text-xs text-text-muted">
+            Available only in the installed app, not in development.
+          </span>
+        )}
+      </div>
+      <div className="mt-3">{renderStatus()}</div>
     </Section>
   );
 }

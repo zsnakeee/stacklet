@@ -118,14 +118,27 @@ async function waitForPipe(timeoutMs: number = PIPE_READY_TIMEOUT_MS): Promise<v
 }
 
 export function resolveServerPath(): string {
-  const alongside = path.join(__dirname, 'server.js');
-  if (fs.existsSync(alongside)) return alongside;
-
-  const fromDist = path.resolve(__dirname, '..', '..', 'dist', 'helper', 'server.js');
-  if (fs.existsSync(fromDist)) return fromDist;
+  // When packaged, __dirname is inside app.asar (…\app.asar\dist\helper). The
+  // helper is launched as a SEPARATE elevated process under plain node.exe,
+  // which cannot read files inside an asar archive (asar support is an Electron
+  // patch). electron-builder is therefore configured to unpack dist/helper +
+  // dist/shared to app.asar.unpacked; prefer that real on-disk copy. (In dev /
+  // tests the path has no "app.asar" segment, so the rewrite is a no-op.)
+  const candidates = [
+    path.join(__dirname, 'server.js'),
+    path.resolve(__dirname, '..', '..', 'dist', 'helper', 'server.js'),
+  ];
+  for (const candidate of candidates) {
+    const unpacked = candidate.replace(
+      `app.asar${path.sep}`,
+      `app.asar.unpacked${path.sep}`,
+    );
+    if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked;
+    if (fs.existsSync(candidate)) return candidate;
+  }
 
   throw new Error(
-    `Helper server not found (expected ${alongside}). Run: npm run build`,
+    `Helper server not found (expected ${candidates[0]}). Run: npm run build`,
   );
 }
 

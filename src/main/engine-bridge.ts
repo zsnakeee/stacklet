@@ -142,6 +142,9 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stacklet:settings:relocateDataDir', async (_e, newDir: string) =>
     getEngine().relocateDataDir(newDir),
   );
+  ipcMain.handle('stacklet:settings:useExistingDataDir', async (_e, dir: string) =>
+    getEngine().useExistingDataDir(dir),
+  );
   ipcMain.handle('stacklet:settings:setProjectsDir', async (_e, dir: string | null) => {
     await getEngine().setProjectsDir(dir);
     return { config: getEngine().getConfig(), status: await getEngine().status() };

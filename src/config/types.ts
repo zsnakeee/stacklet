@@ -150,8 +150,8 @@ export interface DevConfig {
     path_env_selected?: string[];
     /** Start the app hidden to the tray. */
     start_minimized?: boolean;
-    /** Start the window maximized. */
-    start_maximized?: boolean;
+    /** Closing the window keeps Stacklet running in the tray (default true); when false, closing exits the app. */
+    close_to_tray?: boolean;
     /** Auto-start enabled services when the app launches (default true). */
     autostart?: boolean;
     /** Launch Stacklet automatically at Windows login. */

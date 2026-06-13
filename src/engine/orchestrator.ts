@@ -165,7 +165,7 @@ export type AppSettingsPatch = {
     path_in_env?: boolean;
     path_env_selected?: string[];
     start_minimized?: boolean;
-    start_maximized?: boolean;
+    close_to_tray?: boolean;
     autostart?: boolean;
     launch_on_login?: boolean;
     xdebug?: boolean;
@@ -337,6 +337,44 @@ export class Orchestrator {
     };
   }
 
+  /**
+   * Point Stacklet at an EXISTING data folder from a previous install without
+   * moving anything. Unlike relocateDataDir (which requires an empty target and
+   * copies the current data in), this just sets the override pointer to a folder
+   * that already holds Stacklet data — e.g. after a reinstall, or to share one
+   * data folder across machines/drives. Validates the folder looks like Stacklet
+   * data so a wrong pick doesn't silently strand the user on an empty dir.
+   */
+  async useExistingDataDir(dir: string): Promise<{ ok: boolean; message: string; path: string }> {
+    const target = path.resolve(dir);
+    if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+      throw new Error('That folder does not exist. Pick the data folder from your previous install.');
+    }
+    if (path.resolve(getDataDir()) === target) {
+      return { ok: true, message: 'Stacklet is already using that data directory.', path: target };
+    }
+    // Recognise a Stacklet data folder by any of its signature children. A folder
+    // missing all of these is almost certainly the wrong pick (e.g. the install
+    // dir, or an empty/unrelated folder), so refuse rather than strand the user.
+    const markers = ['config.toml', 'services', 'certs', 'sites.json', 'generated'];
+    const looksLikeData = markers.some((m) => fs.existsSync(path.join(target, m)));
+    if (!looksLikeData) {
+      throw new Error(
+        "That folder doesn't look like a Stacklet data directory (no config.toml, services, or certs). " +
+          'Pick the folder a previous install used, or use "Move data directory" to start fresh there.',
+      );
+    }
+
+    await this.stopAllOnQuit();
+    await this.stopIsolatedPhp();
+    setDataDirOverride(target);
+    return {
+      ok: true,
+      message: 'Now using the existing data directory. Restart Stacklet to load it.',
+      path: target,
+    };
+  }
+
   /** Set a custom parent folder for new projects (null reverts to the default). */
   async setProjectsDir(dir: string | null): Promise<DevConfig> {
     if (dir && dir.trim()) {
@@ -430,8 +468,8 @@ export class Orchestrator {
       if (patch.general.start_minimized !== undefined) {
         this.config.general.start_minimized = patch.general.start_minimized;
       }
-      if (patch.general.start_maximized !== undefined) {
-        this.config.general.start_maximized = patch.general.start_maximized;
+      if (patch.general.close_to_tray !== undefined) {
+        this.config.general.close_to_tray = patch.general.close_to_tray;
       }
       if (patch.general.autostart !== undefined) {
         this.config.general.autostart = patch.general.autostart;
