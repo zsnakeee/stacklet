@@ -38,10 +38,10 @@ import { HelperService } from './helper-service';
 import { LogService } from './logs/log-service';
 import { resolveServiceLogId } from './logs/resolve-service-log';
 import {
-  devMgrHttpConfPath,
   mergeNginxOptions,
   phpUploadLimitForNginxBodySize,
-  writeDevMgrHttpConf,
+  stackletHttpConfPath,
+  writeStackletHttpConf,
 } from '../bundled/nginx-configure';
 import { ensureNginxMainConfig, nginxPathsFromInstallRoot } from '../bundled/nginx-paths';
 import { ensureCaBundle } from './php-ca-bundle';
@@ -51,7 +51,7 @@ import {
   mergePhpMyAdminOptions,
 } from '../bundled/phpmyadmin-configure';
 import { ensureRedisConfig } from '../bundled/redis-configure';
-import { detectWebPortConflict } from './nginx-port-check';
+import { detectWebPortConflict, detectWebPortConflictAsync } from './nginx-port-check';
 import { reloadNginx } from './nginx-reload';
 import { renderAll } from './render';
 import {
@@ -126,7 +126,9 @@ import {
   type EnvRestartResult,
   type EnvSyncResult,
 } from './windows-env';
-import { isDevMgrCaTrusted } from './ssl-trust';
+import { isLocalCaTrusted, isLocalCaTrustedAsync } from './ssl-trust';
+import { BRAND, logPrefix } from '../shared/brand';
+import { yieldToEventLoop } from '../shared/yield-to-ui';
 import { installRootCertCurrentUser } from '../helper/cert';
 import { hostsFileHasAllEntries, getHostsPath } from '../helper/hosts';
 import { openTerminalCommand } from './site-terminal';
@@ -184,6 +186,13 @@ export type AppSettingsPatch = {
 
 const SERVICE_START_ORDER = ['nginx', 'php-fpm', 'mysql', 'postgres', 'redis'] as const;
 
+export type ApplyOptions = {
+  /** Run PHP ini maintenance in the background (UI re-apply). */
+  backgroundPhpMaintenance?: boolean;
+  /** Sync Windows user PATH — skip for quick config-only re-apply. */
+  syncPath?: boolean;
+};
+
 export type BootstrapPhase =
   | 'config'
   | 'listed'
@@ -191,10 +200,6 @@ export type BootstrapPhase =
   | { kind: 'started'; service: string }
   | 'finishing'
   | 'ready';
-
-function deferToEventLoop(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
-}
 
 function configServiceKeyToRuntime(
   key: keyof NonNullable<AppSettingsPatch['services']>,
@@ -354,7 +359,7 @@ export class Orchestrator {
         await broadcastEnvironmentChange();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[dev-mgr] PATH broadcast skipped:', msg);
+        console.warn(`${logPrefix()} PATH broadcast skipped:`, msg);
       }
     }
     return result;
@@ -425,7 +430,7 @@ export class Orchestrator {
         await this.stopService(name);
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[dev-mgr] stop ${name} after disable:`, msg);
+        console.warn(`${logPrefix()} stop ${name} after disable:`, msg);
       }
     }
     await this.apply();
@@ -474,13 +479,16 @@ export class Orchestrator {
     const sanNames = collectTlsSanNames(this.config, this.sites);
     ensureDevCerts(sanNames);
     ensureFullChainCert();
+    await yieldToEventLoop();
     renderAll(this.config, this.sites);
+    await yieldToEventLoop();
 
     const nginxSvc = this.config.services.nginx;
     if (nginxSvc.config) {
-      writeDevMgrHttpConf(mergeNginxOptions(nginxSvc.options));
+      writeStackletHttpConf(mergeNginxOptions(nginxSvc.options));
       ensureNginxMainConfig(nginxSvc.config, nginxSvc.options);
     }
+    await yieldToEventLoop();
 
     const redis = this.config.services.redis;
     if (redis.binary && fs.existsSync(redis.binary)) {
@@ -492,6 +500,7 @@ export class Orchestrator {
         this.services = new ServiceManager(this.config);
       }
     }
+    await yieldToEventLoop();
 
     const pma = this.config.services.phpmyadmin;
     if (pma.enabled && pma.path) {
@@ -515,6 +524,7 @@ export class Orchestrator {
         saveConfig(this.config);
       }
     }
+    await yieldToEventLoop();
 
     if (this.config.general.web_server === 'apache') {
       await this.restartApacheIfRunning();
@@ -776,16 +786,16 @@ export class Orchestrator {
     await this.syncHostsIfNeeded();
 
     const certs = ensureDevCerts(collectTlsSanNames(this.config, this.sites));
-    if (isDevMgrCaTrusted(certs.caCertPath)) return;
+    if (isLocalCaTrusted(certs.caCertPath)) return;
 
     try {
       installRootCertCurrentUser(certs.caCertPath);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn('[dev-mgr] CA trust (current user) failed:', msg);
+      console.warn(`${logPrefix()} CA trust (current user) failed:`, msg);
     }
 
-    if (isDevMgrCaTrusted(certs.caCertPath)) return;
+    if (isLocalCaTrusted(certs.caCertPath)) return;
 
     try {
       await this.helper.certInstall(certs.caCertPath);
@@ -801,10 +811,23 @@ export class Orchestrator {
     }
   }
 
-  async apply(): Promise<void> {
+  async apply(options: ApplyOptions = {}): Promise<void> {
+    const { backgroundPhpMaintenance = false, syncPath = true } = options;
     await this.applyLocalConfigs();
-    await this.applyPhpMaintenance();
-    await this.syncEnvironmentPath();
+    await yieldToEventLoop();
+    if (backgroundPhpMaintenance) {
+      void this.applyPhpMaintenance().catch((err) => {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`${logPrefix()} background PHP maintenance:`, msg);
+      });
+    } else {
+      await this.applyPhpMaintenance();
+      await yieldToEventLoop();
+    }
+    if (syncPath) {
+      await this.syncEnvironmentPath();
+      await yieldToEventLoop();
+    }
     // Keep isolated php-cgi instances in sync when PHP is running.
     if (this.services.phpFpm.status.state === 'running') {
       await this.reconcileIsolatedPhp();
@@ -821,11 +844,18 @@ export class Orchestrator {
       .filter((s) => s.state === 'running')
       .map((s) => s.name);
 
-    await this.apply();
+    await this.apply({ backgroundPhpMaintenance: true, syncPath: false });
+    await yieldToEventLoop();
 
     if (running.length > 0) {
-      await this.stop(running);
-      await this.start(running);
+      for (const name of running) {
+        await this.getService(name).stop();
+        await yieldToEventLoop();
+      }
+      for (const name of orderServicesForSequentialStart(running)) {
+        await this.getService(name).start();
+        await yieldToEventLoop();
+      }
     }
     return this.status();
   }
@@ -842,15 +872,19 @@ export class Orchestrator {
   }
 
   async start(services?: string[]): Promise<void> {
-    const targets = this.resolveServiceNames(services);
+    const targets = orderServicesForSequentialStart(this.resolveServiceNames(services));
     if (targets.length === 0) return;
 
-    const results = await Promise.allSettled(
-      targets.map((name) => this.getService(name).start()),
-    );
-    const errors = results
-      .filter((r): r is PromiseRejectedResult => r.status === 'rejected')
-      .map((r) => (r.reason instanceof Error ? r.reason.message : String(r.reason)));
+    const errors: string[] = [];
+    for (const name of targets) {
+      await yieldToEventLoop();
+      try {
+        await this.getService(name).start();
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        errors.push(msg);
+      }
+    }
     if (errors.length > 0) {
       throw new Error(errors.join('\n\n'));
     }
@@ -875,6 +909,7 @@ export class Orchestrator {
         const msg = err instanceof Error ? err.message : String(err);
         errors.push(msg);
       }
+      await yieldToEventLoop();
     }
 
     if (errors.length > 0) {
@@ -894,7 +929,7 @@ export class Orchestrator {
     await this.stopDisabledRunningServices();
 
     onPhase?.('listed');
-    await deferToEventLoop();
+    await yieldToEventLoop();
 
     // Respect the autostart setting — when off, configs are applied but no
     // services are started on launch.
@@ -907,7 +942,7 @@ export class Orchestrator {
         onPhase?.({ kind: 'started', service: name });
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[dev-mgr] autostart ${name}:`, msg);
+        console.warn(`${logPrefix()} autostart ${name}:`, msg);
         onPhase?.({ kind: 'started', service: name });
       }
     }
@@ -917,13 +952,13 @@ export class Orchestrator {
       await this.syncSiteReverb();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn('[dev-mgr] reverb autostart:', msg);
+      console.warn(`${logPrefix()} reverb autostart:`, msg);
     }
     void this.applyPhpMaintenance()
       .then(() => onPhase?.('ready'))
       .catch((err) => {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn('[dev-mgr] background bootstrap:', msg);
+        console.warn(`${logPrefix()} background bootstrap:`, msg);
         onPhase?.('ready');
       });
   }
@@ -939,6 +974,7 @@ export class Orchestrator {
     }
     for (const name of targets) {
       await this.getService(name).stop();
+      await yieldToEventLoop();
     }
   }
 
@@ -959,12 +995,13 @@ export class Orchestrator {
         await svc.stop();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[dev-mgr] stop ${name} on quit:`, msg);
+        console.warn(`${logPrefix()} stop ${name} on quit:`, msg);
       }
     }
   }
 
   async startService(serviceName: string): Promise<void> {
+    await yieldToEventLoop();
     if (serviceName === 'php-fpm' || serviceName === 'php') {
       const phpRoot = path.dirname(
         path.resolve(this.config.services.php.fpm_binary || this.config.services.php.php_binary),
@@ -1338,7 +1375,7 @@ export class Orchestrator {
     return {
       version: resolved,
       configPath,
-      httpConfPath: devMgrHttpConfPath(),
+      httpConfPath: stackletHttpConfPath(),
       port: nginx.port,
       ssl_port: nginx.ssl_port,
       settings,
@@ -1357,7 +1394,7 @@ export class Orchestrator {
     nginx.options = mergeNginxOptions({ ...nginx.options, ...optionPatch });
     saveConfig(this.config);
 
-    writeDevMgrHttpConf(nginx.options);
+    writeStackletHttpConf(nginx.options);
     const configPath = nginx.config || this.nginxConfigPathForVersion(this.resolveNginxVersion(version));
     if (configPath) {
       ensureNginxMainConfig(configPath, nginx.options);
@@ -1440,7 +1477,7 @@ export class Orchestrator {
       await svc.start();
       if (!this.phpAutoRestart) return;
       this.phpFpmHealthFailures = 0;
-      console.warn('[dev-mgr] restarted php-fpm (process was stopped)');
+      console.warn(`${logPrefix()} restarted php-fpm (process was stopped)`);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       if (/Opcode handlers are unusable due to ASLR/i.test(msg)) {
@@ -1448,12 +1485,12 @@ export class Orchestrator {
         if (this.phpFpmHealthFailures >= 3) {
           this.markPhpAutoRestart(false);
           console.warn(
-            '[dev-mgr] php-fpm: OPcache/ASLR startup failed. Click Re-apply in dev-mgr to update php.ini, then Start PHP.',
+            `${logPrefix()} php-fpm: OPcache/ASLR startup failed. Click Re-apply in ${BRAND.name} to update php.ini, then Start PHP.`,
           );
           return;
         }
       }
-      console.warn('[dev-mgr] php-fpm health restart failed:', msg);
+      console.warn(`${logPrefix()} php-fpm health restart failed:`, msg);
     }
   }
 
@@ -1803,7 +1840,25 @@ export class Orchestrator {
         caCertPath: this.sslTrustCache.caCertPath,
       };
     }
-    const trusted = isDevMgrCaTrusted(certs.caCertPath);
+    const trusted = isLocalCaTrusted(certs.caCertPath);
+    this.sslTrustCache = { trusted, caCertPath: certs.caCertPath, checkedAt: now };
+    return { trusted, caCertPath: certs.caCertPath };
+  }
+
+  async getSslTrustStatusAsync(): Promise<{ trusted: boolean; caCertPath: string }> {
+    const certs = ensureDevCerts(collectTlsSanNames(this.config, this.sites));
+    const now = Date.now();
+    if (
+      this.sslTrustCache &&
+      this.sslTrustCache.caCertPath === certs.caCertPath &&
+      now - this.sslTrustCache.checkedAt < SSL_TRUST_CACHE_MS
+    ) {
+      return {
+        trusted: this.sslTrustCache.trusted,
+        caCertPath: this.sslTrustCache.caCertPath,
+      };
+    }
+    const trusted = await isLocalCaTrustedAsync(certs.caCertPath);
     this.sslTrustCache = { trusted, caCertPath: certs.caCertPath, checkedAt: now };
     return { trusted, caCertPath: certs.caCertPath };
   }
@@ -1814,6 +1869,16 @@ export class Orchestrator {
       return this.portConflictCache.message;
     }
     const message = detectWebPortConflict(this.config);
+    this.portConflictCache = { message, checkedAt: now };
+    return message;
+  }
+
+  private async getPortConflictWarningAsync(): Promise<string | undefined> {
+    const now = Date.now();
+    if (this.portConflictCache && now - this.portConflictCache.checkedAt < PORT_CONFLICT_CACHE_MS) {
+      return this.portConflictCache.message;
+    }
+    const message = await detectWebPortConflictAsync(this.config);
     this.portConflictCache = { message, checkedAt: now };
     return message;
   }
@@ -1834,7 +1899,7 @@ export class Orchestrator {
       await this.helper.certInstall(certs.caCertPath);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
-      if (!isDevMgrCaTrusted(certs.caCertPath)) {
+      if (!isLocalCaTrusted(certs.caCertPath)) {
         return { ok: false, message: msg };
       }
     }
@@ -1848,11 +1913,11 @@ export class Orchestrator {
     } catch {
       // nginx may be stopped
     }
-    if (isDevMgrCaTrusted(certs.caCertPath)) {
+    if (isLocalCaTrusted(certs.caCertPath)) {
       return {
         ok: true,
         message:
-          'Dev-mgr CA is trusted and nginx is using the full certificate chain. Fully quit and reopen your browser, then open https://your-site.test again.',
+          `${BRAND.name} CA is trusted and nginx is using the full certificate chain. Fully quit and reopen your browser, then open https://your-site.test again.`,
       };
     }
     return {
@@ -1864,10 +1929,12 @@ export class Orchestrator {
 
   async status() {
     const warnings: string[] = [];
-    const portConflict = this.getPortConflictWarning();
+    const [portConflict, ssl] = await Promise.all([
+      this.getPortConflictWarningAsync(),
+      this.getSslTrustStatusAsync(),
+    ]);
     if (portConflict) warnings.push(portConflict);
 
-    const ssl = this.getSslTrustStatus();
     if (!ssl.trusted) {
       warnings.push(
         'HTTPS is not trusted yet. Open Settings → HTTPS and click “Trust SSL certificate” (UAC prompt), then restart your browser.',
@@ -1909,7 +1976,7 @@ export class Orchestrator {
         await svc.stop();
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        console.warn(`[dev-mgr] stop disabled ${name}:`, msg);
+        console.warn(`${logPrefix()} stop disabled ${name}:`, msg);
       }
     }
   }

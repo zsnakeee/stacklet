@@ -16,6 +16,7 @@ import { ensurePhpIni } from './php-configure';
 import { ensurePhpMyAdminConfig } from './phpmyadmin-configure';
 import { parsePhpVariantFromZipUrl, writePhpInstallMeta } from './php-install-meta';
 import { ensureRedisConfig } from './redis-configure';
+import { readEnv } from '../shared/brand';
 import { ensureDir, getServicesCacheDir } from '../shared/paths';
 
 function emit(handler: InstallProgressHandler | undefined, progress: InstallProgress): void {
@@ -137,7 +138,7 @@ export async function installService(
 
   // Additional versions install side-by-side; do not remove other version folders.
 
-  if (process.env['DEVMGR_MOCK_INSTALL'] === '1') {
+  if (readEnv('MOCK_INSTALL') === '1') {
     const root = await mockInstall(serviceId, version, onProgress);
     setInstalled(serviceId, version, root);
     emit(onProgress, {

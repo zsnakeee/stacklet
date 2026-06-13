@@ -1,10 +1,8 @@
 /**
- * Shared IPC contract for the `window.devmgr` bridge.
+ * Shared IPC contract for the renderer <-> main API bridge.
  *
- * This is the single source of truth for the renderer <-> main API surface.
- * `src/main/preload.ts` implements it; the React renderer imports the type to
- * get a fully-typed `window.devmgr`. Keep it free of runtime/electron imports
- * so both sides (Node + browser) can reference it.
+ * `src/main/preload.ts` exposes `window[BRAND.windowApi]`. Keep this file free
+ * of Electron imports so both Node and the browser can reference it.
  */
 
 export interface InstallProgressPayload {
@@ -23,7 +21,7 @@ export type BootstrapPhase =
   | 'finishing'
   | 'ready';
 
-export interface DevmgrAPI {
+export interface StackletAPI {
   status: () => Promise<unknown>;
   statusLive: () => Promise<{
     services: unknown[];
@@ -230,3 +228,6 @@ export interface DevmgrAPI {
     setProjectsDir: (dir: string | null) => Promise<unknown>;
   };
 }
+
+/** @deprecated Use {@link StackletAPI}. */
+export type DevmgrAPI = StackletAPI;

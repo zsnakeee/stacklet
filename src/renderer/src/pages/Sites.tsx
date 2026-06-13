@@ -5,7 +5,7 @@ import { Modal } from '@/components/ui/Modal';
 import SpotlightCard from '@/components/SpotlightCard';
 import { Icon } from '@/components/Icon';
 import { useAction } from '@/lib/action';
-import { devmgr } from '@/lib/devmgr';
+import { stacklet } from '@/lib/stacklet';
 import { useStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
 import { validateGitUrl, validateSiteName } from '@/lib/validate';
@@ -60,7 +60,7 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
               key: `fav-${site.name}`,
               label: site.favorite ? 'Unfavorite site' : 'Favorite site',
               run: async () => {
-                await devmgr.sitesActions.setFavorite(site.name, !site.favorite);
+                await stacklet.sitesActions.setFavorite(site.name, !site.favorite);
                 await refresh();
               },
             })
@@ -92,7 +92,7 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
               key: `open-${site.name}`,
               label: 'Open site',
               successToast: false,
-              run: () => devmgr.shell.openExternal(url),
+              run: () => stacklet.shell.openExternal(url),
             })
           }
         >
@@ -112,7 +112,7 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
               key: `remove-${site.name}`,
               label: 'Remove site',
               run: async () => {
-                await devmgr.sitesActions.remove(site.name);
+                await stacklet.sitesActions.remove(site.name);
                 await refresh();
               },
             });
@@ -153,7 +153,7 @@ export function Sites() {
       label: 'Choose project folder',
       successToast: false,
       run: async () => {
-        const path = await devmgr.dialog.pickDirectory();
+        const path = await stacklet.dialog.pickDirectory();
         if (!path) return;
         setLinkSource(path);
         setLinkOpen(true);
@@ -172,14 +172,14 @@ export function Sites() {
     setLaravelErr(null);
     setCreating(true);
     setCreateMsg('Starting…');
-    const off = devmgr.site.onCreateProgress((p) => setCreateMsg(p.message));
+    const off = stacklet.site.onCreateProgress((p) => setCreateMsg(p.message));
     void runAction({
       key: 'site-laravel',
       label: 'New Laravel project',
       global: true,
       run: async () => {
         try {
-          await devmgr.sitesActions.createLaravel(name);
+          await stacklet.sitesActions.createLaravel(name);
           await refresh();
           setLaravelOpen(false);
           navigate('/sites');
@@ -201,7 +201,7 @@ export function Sites() {
       global: true,
       run: async () => {
         setLinkOpen(false);
-        await devmgr.sitesActions.linkExisting(linkSource, name || undefined);
+        await stacklet.sitesActions.linkExisting(linkSource, name || undefined);
         setLinkSource(null);
         await refresh();
         navigate('/sites');
@@ -226,7 +226,7 @@ export function Sites() {
       global: true,
       run: async () => {
         setCloneOpen(false);
-        await devmgr.sitesActions.cloneGit(url, name || undefined);
+        await stacklet.sitesActions.cloneGit(url, name || undefined);
         await refresh();
         navigate('/sites');
       },
@@ -291,7 +291,7 @@ export function Sites() {
             <Input name="name" required placeholder="my-app" autoComplete="off" />
           </Field>
           <p className="text-xs text-text-muted">
-            Creates under %LOCALAPPDATA%\devmgr\projects via Composer.
+            Creates under %LOCALAPPDATA%\stacklet\projects via Composer.
           </p>
           {laravelErr && <p className="text-xs text-danger">{laravelErr}</p>}
           <div className="flex justify-end gap-2">
@@ -331,7 +331,7 @@ export function Sites() {
           <Field label="Folder name (optional)">
             <Input name="name" placeholder="defaults to repo name" autoComplete="off" />
           </Field>
-          <p className="text-xs text-text-muted">Runs git clone into %LOCALAPPDATA%\devmgr\projects.</p>
+          <p className="text-xs text-text-muted">Runs git clone into %LOCALAPPDATA%\stacklet\projects.</p>
           {cloneErr && <p className="text-xs text-danger">{cloneErr}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" onClick={() => setCloneOpen(false)}>

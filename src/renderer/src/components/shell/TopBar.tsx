@@ -10,6 +10,7 @@ export function TopBar({ title }: { title: string }) {
     bootstrapping,
     autostart,
     refresh,
+    refreshLive,
     clearRowErrors,
     setGlobalError,
   } = useStore();
@@ -38,7 +39,8 @@ export function TopBar({ title }: { title: string }) {
       global: true,
       run: async () => {
         await devmgr.apply();
-        await refresh();
+        await refreshLive();
+        void refresh();
       },
     });
 
@@ -49,7 +51,8 @@ export function TopBar({ title }: { title: string }) {
       global: true,
       run: async () => {
         await devmgr.reloadAll();
-        await refresh();
+        await refreshLive();
+        void refresh();
       },
     });
 
@@ -66,7 +69,8 @@ export function TopBar({ title }: { title: string }) {
           setGlobalError(err instanceof Error ? err.message : String(err));
           throw err;
         }
-        await refresh();
+        await refreshLive();
+        void refresh();
       },
     });
 
@@ -79,7 +83,8 @@ export function TopBar({ title }: { title: string }) {
         setGlobalError(null);
         clearRowErrors();
         await devmgr.stop();
-        await refresh();
+        await refreshLive();
+        void refresh();
       },
     });
 

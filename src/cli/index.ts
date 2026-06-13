@@ -1,11 +1,12 @@
 ﻿#!/usr/bin/env node
 /**
- * dev-mgr CLI — mirrors engine actions.
+ * Stacklet CLI — mirrors engine actions.
  */
 
 import { Command } from 'commander';
 import type { BundledServiceId } from '../bundled/types';
 import { Orchestrator } from '../engine/orchestrator';
+import { BRAND } from '../shared/brand';
 import { getConfigPath, getDataDir } from '../shared/paths';
 
 const SERVICE_IDS: BundledServiceId[] = [
@@ -21,8 +22,8 @@ const SERVICE_IDS: BundledServiceId[] = [
 const program = new Command();
 
 program
-  .name('devmgr')
-  .description('Local dev environment manager')
+  .name(BRAND.cliName)
+  .description(`${BRAND.name} — local dev environment manager`)
   .version('0.1.0');
 
 program
@@ -42,7 +43,7 @@ program
     const engine = Orchestrator.createInitialized();
     const sites = engine.getSites();
     if (sites.length === 0) {
-      console.log('No sites. Run: devmgr sites-link <path> or devmgr sites-new <name>');
+      console.log(`No sites. Run: ${BRAND.cliName} sites-link <path> or ${BRAND.cliName} sites-new <name>`);
       return;
     }
     for (const s of sites) {
@@ -64,7 +65,7 @@ program
 
 program
   .command('sites-remove <name>')
-  .description('Remove a project from dev-mgr (files on disk are kept)')
+  .description(`Remove a project from ${BRAND.name} (files on disk are kept)`)
   .action(async (name: string) => {
     const engine = Orchestrator.createInitialized();
     await engine.removeSite(name);
@@ -73,7 +74,7 @@ program
 
 program
   .command('sites-new <name>')
-  .description('Create a new Laravel project under devmgr/projects')
+  .description(`Create a new Laravel project under ${BRAND.dataDirName}/projects`)
   .action(async (name: string) => {
     const engine = Orchestrator.createInitialized();
     await engine.createLaravelSite(name);

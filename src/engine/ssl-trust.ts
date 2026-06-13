@@ -1,9 +1,7 @@
-﻿import { spawnSync } from 'child_process';
+﻿import { spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import forge from 'node-forge';
 import { getCaCertPath } from '../shared/paths';
-
-const DEVMGR_CA_SUBJECT = 'DevMgr Local CA';
 
 /** SHA1 thumbprint of the X.509 certificate (not the PEM file hash). */
 export function getCertSha1Thumbprint(certPath: string): string | null {
@@ -25,14 +23,30 @@ function isCaInCertStore(storeArgs: string[], thumb: string): boolean {
     encoding: 'utf8',
     windowsHide: true,
   });
-  const stdout = store.stdout ?? '';
-  const normalized = stdout.toLowerCase().replace(/ /g, '');
-  if (normalized.includes(thumb)) return true;
-  return stdout.includes(DEVMGR_CA_SUBJECT);
+  const normalized = (store.stdout ?? '').toLowerCase().replace(/ /g, '');
+  return normalized.includes(thumb);
 }
 
-/** True when the dev-mgr CA is in a Windows Trusted Root store (machine or current user). */
-export function isDevMgrCaTrusted(caCertPath: string = getCaCertPath()): boolean {
+function isCaInCertStoreAsync(storeArgs: string[], thumb: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    const child = spawn('certutil', ['-store', ...storeArgs], {
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'ignore'],
+    });
+    let stdout = '';
+    child.stdout?.on('data', (chunk: Buffer | string) => {
+      stdout += chunk.toString();
+    });
+    child.on('error', () => resolve(false));
+    child.on('close', () => {
+      const normalized = stdout.toLowerCase().replace(/ /g, '');
+      resolve(normalized.includes(thumb));
+    });
+  });
+}
+
+/** True when the active local CA is in a Windows Trusted Root store (machine or current user). */
+export function isLocalCaTrusted(caCertPath: string = getCaCertPath()): boolean {
   if (process.platform !== 'win32') return false;
   if (!fs.existsSync(caCertPath)) return false;
 
@@ -44,3 +58,23 @@ export function isDevMgrCaTrusted(caCertPath: string = getCaCertPath()): boolean
     isCaInCertStore(['-user', 'Root'], thumb)
   );
 }
+
+/** Non-blocking trust check for status polling (does not freeze the Electron main process). */
+export async function isLocalCaTrustedAsync(
+  caCertPath: string = getCaCertPath(),
+): Promise<boolean> {
+  if (process.platform !== 'win32') return false;
+  if (!fs.existsSync(caCertPath)) return false;
+
+  const thumb = getCertSha1Thumbprint(caCertPath);
+  if (!thumb) return false;
+
+  const [machine, user] = await Promise.all([
+    isCaInCertStoreAsync(['Root'], thumb),
+    isCaInCertStoreAsync(['-user', 'Root'], thumb),
+  ]);
+  return machine || user;
+}
+
+/** @deprecated Use {@link isLocalCaTrusted}. */
+export const isDevMgrCaTrusted = isLocalCaTrusted;

@@ -1,7 +1,9 @@
 ﻿import fs from 'fs';
 import path from 'path';
+import { BRAND } from '../shared/brand';
 
-const META_FILE = '.devmgr-php.json';
+const META_FILE = `.${BRAND.slug}-php.json`;
+const LEGACY_META_FILE = `.${BRAND.legacySlug}-php.json`;
 
 export interface PhpInstallMeta {
   /** e.g. nts-vs17-x64 */
@@ -14,8 +16,7 @@ export function parsePhpVariantFromZipUrl(url: string): string | null {
   return `${m[1].toLowerCase()}-${m[2].toLowerCase()}-x64`;
 }
 
-export function readPhpInstallMeta(phpRoot: string): PhpInstallMeta | null {
-  const file = path.join(phpRoot, META_FILE);
+function readMetaFile(file: string): PhpInstallMeta | null {
   if (!fs.existsSync(file)) return null;
   try {
     const data = JSON.parse(fs.readFileSync(file, 'utf8')) as PhpInstallMeta;
@@ -24,6 +25,13 @@ export function readPhpInstallMeta(phpRoot: string): PhpInstallMeta | null {
     // ignore
   }
   return null;
+}
+
+export function readPhpInstallMeta(phpRoot: string): PhpInstallMeta | null {
+  return (
+    readMetaFile(path.join(phpRoot, META_FILE)) ??
+    readMetaFile(path.join(phpRoot, LEGACY_META_FILE))
+  );
 }
 
 export function writePhpInstallMeta(phpRoot: string, variantKey: string): void {

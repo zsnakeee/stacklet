@@ -7,6 +7,7 @@ import {
   PHP_RECOMMENDED_EXTENSIONS,
 } from '../engine/php-extensions';
 import { isValidCaBundle } from '../engine/php-ca-bundle';
+import { BRAND } from '../shared/brand';
 import { ensureDir, getDataDir } from '../shared/paths';
 
 function exists(p: string): boolean {
@@ -78,7 +79,7 @@ export function opcacheFileCacheDirForPhpRoot(phpRoot: string): string {
 
 export function opcacheCacheIdForPhpRoot(phpRoot: string): string {
   const cacheKey = path.basename(path.resolve(phpRoot)).replace(/[^a-zA-Z0-9._-]+/g, '-');
-  return `devmgr-cgi-${cacheKey}`;
+  return `${BRAND.slug}-cgi-${cacheKey}`;
 }
 
 /** Windows php-cgi: OPcache SHM + ASLR needs file cache (avoids fatal on startup). */

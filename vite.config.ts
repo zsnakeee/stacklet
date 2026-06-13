@@ -40,6 +40,7 @@ export default defineConfig({
         codeSplitting: {
           groups: [
             { name: 'globe', test: /node_modules[\\/](globe\.gl|three)/ },
+            { name: 'aurora', test: /node_modules[\\/]ogl|components[\\/]Aurora/ },
             {
               name: 'react-vendor',
               test: /node_modules[\\/](react|react-dom|react-router|react-router-dom|scheduler)[\\/]/,

@@ -33,6 +33,7 @@
   ],
   "main": "dist/main/index.js",
   "bin": {
+    "stacklet": "dist/cli/index.js",
     "devmgr": "dist/cli/index.js"
   },
   "scripts": {
@@ -44,6 +45,7 @@
     "dev:renderer": "vite",
     "typecheck": "tsc --noEmit && tsc --noEmit -p src/renderer/tsconfig.json",
     "test": "vitest run",
+    "stacklet": "npm run build && node dist/cli/index.js",
     "devmgr": "npm run build && node dist/cli/index.js",
     "spike": "npm run build && node dist/spike/index.js",
     "helper": "npm run build && node dist/helper/server.js",

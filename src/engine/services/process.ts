@@ -1,6 +1,7 @@
 ﻿import { ChildProcess, spawn, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import { BRAND, logPrefix } from '../../shared/brand';
 import { getProcessImagePath } from '../nginx-port-check';
 import { ensureDir, getRuntimeDir } from '../../shared/paths';
 import { killProcessTree } from './kill-process-tree';
@@ -124,14 +125,14 @@ export class ManagedProcess {
     }
     if (this.name === 'postgres' && this.args.length === 0) {
       const msg =
-        `${this.name}: missing data directory (reinstall PostgreSQL or click Re-apply in dev-mgr)`;
+        `${this.name}: missing data directory (reinstall PostgreSQL or click Re-apply in ${BRAND.name})`;
       this.lastError = msg;
       throw new Error(msg);
     }
     if (this.name === 'redis' && this.args.length > 0) {
       const conf = this.args[0];
       if (!fs.existsSync(conf)) {
-        const msg = `${this.name}: config not found (${conf}). Click Apply in dev-mgr to generate redis.conf.`;
+        const msg = `${this.name}: config not found (${conf}). Click Apply in ${BRAND.name} to generate redis.conf.`;
         this.lastError = msg;
         throw new Error(msg);
       }
@@ -395,8 +396,8 @@ export class ManagedProcess {
     if (!this.supervise || this.intentionalStop || this.restartTimer) return;
     if (this.superviseFailures >= SUPERVISE_RESTART_MAX_FAILURES) {
       console.warn(
-        `[dev-mgr] ${this.name}: supervised restart paused after repeated failures. ` +
-          'Use Re-apply in dev-mgr to refresh php.ini, then Start PHP.',
+        `${logPrefix()} ${this.name}: supervised restart paused after repeated failures. ` +
+          `Use Re-apply in ${BRAND.name} to refresh php.ini, then Start PHP.`,
       );
       return;
     }
@@ -410,7 +411,7 @@ export class ManagedProcess {
         })
         .catch((err) => {
           const msg = err instanceof Error ? err.message : String(err);
-          console.warn(`[dev-mgr] ${this.name} supervised restart failed:`, msg);
+          console.warn(`${logPrefix()} ${this.name} supervised restart failed:`, msg);
           this.scheduleSupervisedRestart();
         });
     }, this.superviseRestartDelayMs());

@@ -14,6 +14,7 @@ import type {
   AppConfig,
   BundledService,
   RuntimeService,
+  Site,
   Status,
 } from '@/lib/types';
 import type { InstallProgressPayload } from '@shared/ipc';
@@ -87,6 +88,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const setStatus = useCallback((s: Status) => setStatusState(s), []);
   const setConfig = useCallback((c: AppConfig) => setConfigState(c), []);
 
+  const scheduleFullRefresh = useCallback((run: () => Promise<void>) => {
+    const fire = () => void run().catch(() => {});
+    window.setTimeout(() => {
+      if (typeof window.requestIdleCallback === 'function') {
+        window.requestIdleCallback(fire, { timeout: 12_000 });
+      } else {
+        fire();
+      }
+    }, 2500);
+  }, []);
+
   const refresh = useCallback(async () => {
     const [s, c] = await Promise.all([
       devmgr.status() as Promise<Status>,
@@ -157,7 +169,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (phase === 'config') {
         setBootstrapping(true);
         setAutostart('Preparing…');
-        void refresh();
+        void refreshLive();
         return;
       }
       if (phase === 'listed') {
@@ -201,13 +213,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         toast.error(payload.error);
         setGlobalError(payload.error);
       }
-      void refresh();
+      scheduleFullRefresh(refresh);
     });
 
-    // Initial load.
-    void refresh().catch((err) => {
-      setBootError(err instanceof Error ? err.message : String(err));
-    });
+    // Fast first paint (no certutil / netstat); full status after idle.
+    void (async () => {
+      try {
+        const [live, sites, c] = await Promise.all([
+          devmgr.statusLive(),
+          devmgr.sites() as Promise<Site[]>,
+          devmgr.config() as Promise<AppConfig>,
+        ]);
+        setConfigState(c);
+        setStatusState({
+          services: live.services as RuntimeService[],
+          bundledServices: live.bundledServices as BundledService[],
+          sites,
+        });
+      } catch (err) {
+        setBootError(err instanceof Error ? err.message : String(err));
+        return;
+      }
+      scheduleFullRefresh(refresh);
+    })();
 
     return () => {
       offProgress();

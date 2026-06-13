@@ -3,7 +3,7 @@ import os from 'os';
 import path from 'path';
 import { spawnSync } from 'child_process';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { getCertSha1Thumbprint, isDevMgrCaTrusted } from '../ssl-trust';
+import { getCertSha1Thumbprint, isLocalCaTrusted } from '../ssl-trust';
 import { ensureDevCerts } from '../tls';
 
 describe('ssl-trust', () => {
@@ -47,11 +47,15 @@ describe('ssl-trust', () => {
     expect(thumb).toBe(m?.[1]?.toLowerCase());
   });
 
-  it('detects installed dev-mgr CA on this machine when present', () => {
+  it('detects trust only when the active CA thumbprint is in the root store', () => {
     if (process.platform !== 'win32') return;
     const { caCertPath } = ensureDevCerts();
-    const store = spawnSync('certutil', ['-store', 'Root'], { encoding: 'utf8' });
-    if (!(store.stdout ?? '').includes('DevMgr Local CA')) return;
-    expect(isDevMgrCaTrusted(caCertPath)).toBe(true);
+    const thumb = getCertSha1Thumbprint(caCertPath);
+    if (!thumb) return;
+    const machine = spawnSync('certutil', ['-store', 'Root'], { encoding: 'utf8' });
+    const user = spawnSync('certutil', ['-store', '-user', 'Root'], { encoding: 'utf8' });
+    const normalized = (machine.stdout ?? '') + (user.stdout ?? '');
+    const inStore = normalized.toLowerCase().replace(/ /g, '').includes(thumb);
+    expect(isLocalCaTrusted(caCertPath)).toBe(inStore);
   });
 });

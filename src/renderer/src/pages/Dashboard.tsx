@@ -2,10 +2,11 @@ import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Badge, IconButton } from '@/components/ui/primitives';
 import { Icon } from '@/components/Icon';
-import Globe from '@/components/globe';
+import { DashboardGlobe } from '@/components/DashboardGlobe';
 import { useAction } from '@/lib/action';
 import { badgeForRuntime } from '@/lib/badge';
 import { RUNTIME_ROWS } from '@/lib/constants';
+import { useDeferredMount } from '@/lib/use-deferred-mount';
 import { devmgr } from '@/lib/devmgr';
 import { openServiceLog } from '@/lib/logs-helpers';
 import { bundledById, runtimeStatus, useStore } from '@/lib/store';
@@ -41,6 +42,7 @@ function StatCard({
 }
 
 function PhpBar() {
+  const ready = useDeferredMount(true, { minDelayMs: 2000, idleTimeoutMs: 6000 });
   const { runAction } = useAction();
   const { refresh } = useStore();
   const [versions, setVersions] = useState<string[]>([]);
@@ -53,8 +55,11 @@ function PhpBar() {
   };
 
   useEffect(() => {
+    if (!ready) return;
     void load();
-  }, []);
+  }, [ready]);
+
+  if (!ready) return null;
 
   if (versions.length === 0) return null;
 
@@ -197,21 +202,19 @@ export function Dashboard() {
             <StatCard value={errorCount} label="Attention" warn={errorCount > 0} />
           </div>
         </div>
-        <div className="pointer-events-none hidden justify-self-center lg:flex">
-          <Globe
-            key={theme}
-            width={300}
-            height={260}
-            primaryColor="rgb(45, 212, 170)"
-            neutralColor={theme === 'dark' ? 'rgb(96, 165, 250)' : 'rgb(37, 99, 235)'}
-            globeColor={theme === 'dark' ? 'rgb(14, 21, 28)' : 'rgb(203, 213, 225)'}
-            globeOpacity={theme === 'dark' ? 0.55 : 0.7}
-            atmosphereColor="rgb(45, 212, 170)"
-            autoRotateSpeed={0.8}
-            enableZoom={false}
-            className="opacity-90"
-          />
-        </div>
+        <DashboardGlobe
+          key={theme}
+          width={300}
+          height={260}
+          primaryColor="rgb(45, 212, 170)"
+          neutralColor={theme === 'dark' ? 'rgb(96, 165, 250)' : 'rgb(37, 99, 235)'}
+          globeColor={theme === 'dark' ? 'rgb(14, 21, 28)' : 'rgb(203, 213, 225)'}
+          globeOpacity={theme === 'dark' ? 0.55 : 0.7}
+          atmosphereColor="rgb(45, 212, 170)"
+          autoRotateSpeed={0.8}
+          enableZoom={false}
+          className="opacity-90"
+        />
       </section>
 
       {status?.warnings && status.warnings.length > 0 && (

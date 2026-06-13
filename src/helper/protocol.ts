@@ -1,4 +1,5 @@
 ﻿import path from 'path';
+import { BRAND } from '../shared/brand';
 import { getDataDir } from '../shared/paths';
 
 /**
@@ -53,7 +54,7 @@ export interface HelperResponse {
 }
 
 /** Named pipe path used by both server and client. */
-export const PIPE_PATH = '\\\\.\\pipe\\stacklet-helper';
+export const PIPE_PATH = BRAND.helperPipe;
 
 /**
  * The token file location: <data-dir>\helper.token (alongside helper.pid).

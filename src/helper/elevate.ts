@@ -6,6 +6,7 @@
  */
 
 import { spawn, execFileSync } from 'child_process';
+import { BRAND, envVar, readEnv } from '../shared/brand';
 import fs from 'fs';
 import path from 'path';
 import { ensureDir, getDataDir } from '../shared/paths';
@@ -54,7 +55,7 @@ function findNodeOnPath(): string | null {
 export function resolveHelperRuntime(): HelperRuntime {
   const candidates = [
     process.env['npm_node_execpath'],
-    process.env['DEVMGR_NODE_PATH'],
+    readEnv('NODE_PATH'),
     findNodeOnPath(),
     path.join(process.env['ProgramFiles'] ?? 'C:\\Program Files', 'nodejs', 'node.exe'),
     path.join(
@@ -79,7 +80,7 @@ export function resolveHelperRuntime(): HelperRuntime {
   }
 
   throw new Error(
-    'Could not find Node.js to run the privileged helper. Install Node.js or set DEVMGR_NODE_PATH.',
+    `Could not find Node.js to run the privileged helper. Install Node.js or set ${envVar('NODE_PATH')}.`,
   );
 }
 
@@ -93,7 +94,7 @@ async function waitForPipe(timeoutMs: number = PIPE_READY_TIMEOUT_MS): Promise<v
     if (state === 'denied') {
       throw new Error(
         'Helper is running but this app cannot access its pipe (EPERM). ' +
-          'Click Apply again — dev-mgr will restart the helper with the correct permissions.',
+          `Click Apply again — ${BRAND.name} will restart the helper with the correct permissions.`,
       );
     }
     await new Promise((r) => setTimeout(r, PIPE_POLL_INTERVAL_MS));

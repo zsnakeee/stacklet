@@ -1,9 +1,10 @@
 ﻿import { spawnSync } from 'child_process';
+import { BRAND, readEnv } from '../shared/brand';
 import fs from 'fs';
 import path from 'path';
 import { resolvePhpIniPath } from './php-ini';
 
-const MARKER = '; dev-mgr php extensions';
+const MARKER = `; ${BRAND.name} php extensions`;
 
 /** Extensions enabled automatically for phpMyAdmin / Laravel. */
 export const PHP_RECOMMENDED_EXTENSIONS = [
@@ -312,7 +313,7 @@ export function verifyPhpExtensionLoads(phpRoot: string, name: string): void {
   if (/Unable to initialize module/i.test(output) || /need to match/i.test(output)) {
     throw new Error(
       `PHP could not load extension "${name}" (API / build mismatch).${output ? `\n${output}` : ''}\n` +
-        'Re-install the extension from PHP → Extensions so dev-mgr downloads the correct PECL zip.',
+        `Re-install the extension from PHP → Extensions so ${BRAND.name} downloads the correct PECL zip.`,
     );
   }
 
@@ -324,7 +325,7 @@ export function verifyPhpExtensionLoads(phpRoot: string, name: string): void {
 
   throw new Error(
     `PHP did not load extension "${name}" after enabling it.${output ? `\n${output}` : ''}\n` +
-      'Check ext/ and php.ini, then Restart PHP in dev-mgr.',
+      `Check ext/ and php.ini, then Restart PHP in ${BRAND.name}.`,
   );
 }
 

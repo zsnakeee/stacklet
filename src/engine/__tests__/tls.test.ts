@@ -5,9 +5,9 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { defaultConfig } from '../../config/defaults';
 import type { Site } from '../../config/types';
 import forge from 'node-forge';
+import { LEAF_CN } from '../../shared/brand';
 import {
   collectTlsSanNames,
-  DEV_MGR_LEAF_CN,
   ensureDevCerts,
   ensureFullChainCert,
   readLeafSanNames,
@@ -52,18 +52,18 @@ describe('ensureDevCerts', () => {
   });
 
   it('creates CA and leaf certificate files', () => {
-    const paths = ensureDevCerts(['*.test', 'dev-mgr.local', 'test', 'phpmyadmin.test']);
+    const paths = ensureDevCerts(['*.test', LEAF_CN, 'test', 'phpmyadmin.test']);
     expect(fs.existsSync(paths.caCertPath)).toBe(true);
     expect(fs.existsSync(paths.leafCertPath)).toBe(true);
     expect(fs.readFileSync(paths.leafCertPath, 'utf8')).toContain('BEGIN CERTIFICATE');
     expect(readLeafSanNames()).toContain('phpmyadmin.test');
     const leaf = forge.pki.certificateFromPem(fs.readFileSync(getLeafCertPath(), 'utf8'));
     const cn = leaf.subject.getField('CN')?.value;
-    expect(cn).toBe(DEV_MGR_LEAF_CN);
+    expect(cn).toBe(LEAF_CN);
   });
 
   it('writes fullchain.crt with leaf and CA', () => {
-    ensureDevCerts(['*.test', 'dev-mgr.local', 'test']);
+    ensureDevCerts(['*.test', LEAF_CN, 'test']);
     const chainPath = ensureFullChainCert();
     expect(chainPath).toBe(getFullChainCertPath());
     const chain = fs.readFileSync(chainPath, 'utf8');
@@ -71,7 +71,7 @@ describe('ensureDevCerts', () => {
   });
 
   it('is idempotent when SAN list is unchanged', () => {
-    const sans = ['*.test', 'dev-mgr.local', 'test', 'app.test'];
+    const sans = ['*.test', LEAF_CN, 'test', 'app.test'];
     const first = ensureDevCerts(sans);
     const caMtime = fs.statSync(first.caCertPath).mtimeMs;
     const leafMtime = fs.statSync(first.leafCertPath).mtimeMs;
@@ -81,11 +81,11 @@ describe('ensureDevCerts', () => {
   });
 
   it('regenerates leaf when a new hostname is required', () => {
-    ensureDevCerts(['*.test', 'dev-mgr.local', 'test']);
+    ensureDevCerts(['*.test', LEAF_CN, 'test']);
     const before = readLeafSanNames();
     expect(before).not.toContain('phpmyadmin.test');
 
-    ensureDevCerts(['*.test', 'dev-mgr.local', 'test', 'phpmyadmin.test']);
+    ensureDevCerts(['*.test', LEAF_CN, 'test', 'phpmyadmin.test']);
     const after = readLeafSanNames();
     expect(after).toContain('phpmyadmin.test');
   });

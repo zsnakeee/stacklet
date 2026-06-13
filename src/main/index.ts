@@ -1,5 +1,6 @@
 ﻿import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
 import path from 'path';
+import { initConfig, loadConfig } from '../config/store';
 import {
   bootstrapEngineOnLaunch,
   getEngine,
@@ -8,11 +9,11 @@ import {
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
 import { migrateLegacyDataDir } from '../shared/paths';
+import { BRAND, logPrefix } from '../shared/brand';
 import { initErrorLogging } from './logger';
 
-// App identity (shows "Stacklet" instead of "Electron" in dev menus/taskbar).
-app.setName('Stacklet');
-process.title = 'Stacklet';
+app.setName(BRAND.name);
+process.title = BRAND.name;
 
 // Migrate the legacy %LOCALAPPDATA%\devmgr folder to \stacklet before anything
 // creates the new data dir.
@@ -48,30 +49,31 @@ function registerWindowIpc(getWindow: () => BrowserWindow | null): void {
   });
 }
 
-function startMinimized(): boolean {
+function readGeneralPrefs(): {
+  startMinimized: boolean;
+  startMaximized: boolean;
+  launchOnLogin: boolean;
+} {
   try {
-    return getEngine().getConfig().general.start_minimized === true;
+    const general = loadConfig().general;
+    return {
+      startMinimized: general.start_minimized === true,
+      startMaximized: general.start_maximized === true,
+      launchOnLogin: general.launch_on_login === true,
+    };
   } catch {
-    return false;
+    return { startMinimized: false, startMaximized: false, launchOnLogin: false };
   }
 }
 
-function startMaximized(): boolean {
-  try {
-    return getEngine().getConfig().general.start_maximized === true;
-  } catch {
-    return false;
-  }
-}
-
-function createWindow(): BrowserWindow {
+function createWindow(prefs: ReturnType<typeof readGeneralPrefs>): BrowserWindow {
   const win = new BrowserWindow({
     width: 1200,
     height: 800,
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#090c0e',
-    show: !startMinimized(),
+    show: !prefs.startMinimized,
     frame: false,
     autoHideMenuBar: true,
     icon: app.isPackaged ? undefined : path.join(app.getAppPath(), 'build', 'icon.png'),
@@ -110,7 +112,7 @@ function createWindow(): BrowserWindow {
   win.on('closed', () => {
     mainWindow = null;
   });
-  if (startMaximized() && !startMinimized()) {
+  if (prefs.startMaximized && !prefs.startMinimized) {
     win.maximize();
   }
   return win;
@@ -122,25 +124,25 @@ function getWindow(): BrowserWindow | null {
 
 app.whenReady().then(() => {
   Menu.setApplicationMenu(null);
+  initConfig();
+  const prefs = readGeneralPrefs();
   registerEngineIpc(getWindow);
   registerWindowIpc(getWindow);
   try {
-    app.setLoginItemSettings({
-      openAtLogin: getEngine().getConfig().general.launch_on_login === true,
-    });
+    app.setLoginItemSettings({ openAtLogin: prefs.launchOnLogin });
   } catch {
     // login-item registration is best-effort
   }
-  mainWindow = createWindow();
+  mainWindow = createWindow(prefs);
   createTray(getWindow);
-  // Let the window paint and handle UI IPC before autostart (apply/helper can block).
+  // Paint the window first; engine init + autostart can block the main thread.
   mainWindow.webContents.once('did-finish-load', () => {
     void bootstrapEngineOnLaunch(getWindow);
   });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      mainWindow = createWindow();
+      mainWindow = createWindow(readGeneralPrefs());
     }
   });
 });
@@ -161,7 +163,7 @@ app.on('before-quit', (event) => {
   void shutdownEngineOnQuit()
     .catch((err) => {
       const msg = err instanceof Error ? err.message : String(err);
-      console.error('[dev-mgr] shutdown:', msg);
+      console.error(`${logPrefix()} shutdown:`, msg);
     })
     .finally(() => {
       shutdownComplete = true;

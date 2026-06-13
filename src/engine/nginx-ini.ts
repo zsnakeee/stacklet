@@ -2,10 +2,11 @@
 import { spawn } from 'child_process';
 import path from 'path';
 import {
-  devMgrHttpConfPath,
   mergeNginxOptions,
-  readDevMgrHttpConf,
+  readStackletHttpConf,
+  stackletHttpConfPath,
 } from '../bundled/nginx-configure';
+import { readEnv } from '../shared/brand';
 import { nginxPathsFromInstallRoot } from '../bundled/nginx-paths';
 import { getInstallDir } from '../bundled/registry';
 import type { NginxOptions } from '../config/types';
@@ -19,7 +20,7 @@ export function getNginxInstallPath(version: string): string | null {
 export function readNginxSettingsFromDisk(
   configOptions?: Partial<NginxOptions>,
 ): NginxOptions {
-  const fromFile = readDevMgrHttpConf(devMgrHttpConfPath());
+  const fromFile = readStackletHttpConf(stackletHttpConfPath());
   return mergeNginxOptions({ ...configOptions, ...fromFile });
 }
 
@@ -34,7 +35,7 @@ const NOTEPAD_PLUS_PATHS = [
 ];
 
 export function openNginxConfInEditor(configPath: string): void {
-  let editor = process.env['DEVMGR_NGINX_EDITOR'] ?? process.env['DEVMGR_PHP_EDITOR'];
+  let editor = readEnv('NGINX_EDITOR') ?? readEnv('PHP_EDITOR');
   if (!editor) {
     editor = NOTEPAD_PLUS_PATHS.find((p) => p && fs.existsSync(p));
   }

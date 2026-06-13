@@ -1,7 +1,8 @@
 ﻿import fs from 'fs';
 import path from 'path';
-import { devMgrHttpConfPath, writeDevMgrHttpConf } from './nginx-configure';
+import { stackletHttpConfPath, writeStackletHttpConf } from './nginx-configure';
 import { getGeneratedDir } from '../shared/paths';
+import { BRAND, nginxIncludeBlockRegex } from '../shared/brand';
 import { getInstallDir } from './registry';
 import type { NginxOptions } from '../config/types';
 
@@ -20,7 +21,7 @@ function findFile(root: string, name: string): string | null {
   return null;
 }
 
-/** Canonical install root: %LOCALAPPDATA%\\devmgr\\services\\nginx\\{version} */
+/** Canonical install root: %LOCALAPPDATA%\\{dataDir}\\services\\nginx\\{version} */
 export function resolveNginxInstallRoot(version: string, manifestPath: string): string {
   const canonical = getInstallDir('nginx', version);
   if (exists(path.join(canonical, 'nginx.exe'))) return canonical;
@@ -53,7 +54,7 @@ export function nginxPathsFromInstallRoot(installRoot: string): NginxPaths | nul
   };
 }
 
-const DEVMGR_MARKER = '# stacklet';
+const INCLUDE_MARKER = `# ${BRAND.slug}`;
 
 /** Index of the closing `}` for the top-level `http { ... }` block. */
 function findHttpBlockEnd(conf: string): number {
@@ -74,12 +75,9 @@ function findHttpBlockEnd(conf: string): number {
   return -1;
 }
 
-/** Remove our include blocks (matches both legacy "# dev-mgr" and "# stacklet"). */
-function stripDevMgrInclude(conf: string): string {
-  return conf.replace(
-    /\n\s*# (?:dev-mgr|stacklet)\s*\n(?:\s*include\s+"[^"]+"\s*;\s*\n)+/g,
-    '\n',
-  );
+/** Remove our include blocks (matches legacy branded markers). */
+function stripStackletInclude(conf: string): string {
+  return conf.replace(nginxIncludeBlockRegex(), '\n');
 }
 
 /** Directives owned by stacklet-http.conf — strip from main http {} to avoid duplicate errors. */
@@ -111,16 +109,16 @@ function stripManagedHttpDirectives(conf: string): string {
 
 function generatedIncludePaths(): { http: string; sites: string } {
   return {
-    http: devMgrHttpConfPath().replace(/\\/g, '/'),
+    http: stackletHttpConfPath().replace(/\\/g, '/'),
     sites: path.join(getGeneratedDir(), 'nginx', 'stacklet-sites.conf').replace(/\\/g, '/'),
   };
 }
 
-/** Inject dev-mgr includes at the start of `http { }` so tuning applies before vhosts. */
-function injectDevMgrIncludes(conf: string, includePaths: string[]): string {
-  let next = stripDevMgrInclude(conf);
+/** Inject Stacklet includes at the start of `http { }` so tuning applies before vhosts. */
+function injectStackletIncludes(conf: string, includePaths: string[]): string {
+  let next = stripStackletInclude(conf);
   const lines = includePaths.map((p) => `include "${p}";`);
-  const block = `\n    ${DEVMGR_MARKER}\n    ${lines.map((l) => `    ${l}`).join('\n')}\n`;
+  const block = `\n    ${INCLUDE_MARKER}\n    ${lines.map((l) => `    ${l}`).join('\n')}\n`;
 
   const match = /http\s*\{/.exec(next);
   if (!match || match.index === undefined) {
@@ -134,8 +132,8 @@ function injectDevMgrIncludes(conf: string, includePaths: string[]): string {
 /** Disable the bundled "Welcome to nginx" site on port 80 so named vhosts win. */
 function disableStockWelcomeServer(conf: string): string {
   if (
-    conf.includes('# stacklet: stock welcome disabled') ||
-    conf.includes('# dev-mgr: stock welcome disabled')
+    conf.includes(`# ${BRAND.slug}: stock welcome disabled`) ||
+    conf.includes(`# ${BRAND.legacySlugDash}: stock welcome disabled`)
   ) {
     return conf;
   }
@@ -170,7 +168,7 @@ function disableStockWelcomeServer(conf: string): string {
 
   return (
     conf.slice(0, serverStart) +
-    `# stacklet: stock welcome disabled\n${commented}\n` +
+    `# ${BRAND.slug}: stock welcome disabled\n${commented}\n` +
     conf.slice(serverEnd)
   );
 }
@@ -188,12 +186,12 @@ export function configureNginxInstall(
   const confPath = path.join(confDir, 'nginx.conf');
   if (!exists(confPath)) return;
 
-  writeDevMgrHttpConf(httpOptions);
+  writeStackletHttpConf(httpOptions);
   const includes = generatedIncludePaths();
 
   let conf = fs.readFileSync(confPath, 'utf8');
   conf = stripManagedHttpDirectives(conf);
-  conf = injectDevMgrIncludes(conf, [includes.http, includes.sites]);
+  conf = injectStackletIncludes(conf, [includes.http, includes.sites]);
   conf = disableStockWelcomeServer(conf);
 
   if (!/^\s*error_log\s/m.test(conf)) {
@@ -206,19 +204,19 @@ export function configureNginxInstall(
   fs.writeFileSync(confPath, conf, 'utf8');
 }
 
-/** Ensure main nginx.conf includes dev-mgr http tuning and vhosts. */
+/** Ensure main nginx.conf includes Stacklet http tuning and vhosts. */
 export function ensureNginxMainConfig(
   configPath: string,
   httpOptions?: Partial<NginxOptions>,
 ): void {
   if (!exists(configPath)) return;
 
-  writeDevMgrHttpConf(httpOptions);
+  writeStackletHttpConf(httpOptions);
   const includes = generatedIncludePaths();
 
   let conf = fs.readFileSync(configPath, 'utf8');
   conf = stripManagedHttpDirectives(conf);
-  conf = injectDevMgrIncludes(conf, [includes.http, includes.sites]);
+  conf = injectStackletIncludes(conf, [includes.http, includes.sites]);
   conf = disableStockWelcomeServer(conf);
   fs.writeFileSync(configPath, conf, 'utf8');
 }

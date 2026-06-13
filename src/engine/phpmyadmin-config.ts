@@ -9,6 +9,7 @@ import {
 } from '../bundled/phpmyadmin-configure';
 import { getInstallDir } from '../bundled/registry';
 import type { PhpMyAdminOptions } from '../config/types';
+import { readEnv } from '../shared/brand';
 
 export function getPhpMyAdminInstallPath(version: string): string | null {
   const dir = getInstallDir('phpmyadmin', version);
@@ -37,7 +38,7 @@ const NOTEPAD_PLUS_PATHS = [
 ];
 
 export function openPhpMyAdminConfigInEditor(configPath: string): void {
-  let editor = process.env['DEVMGR_PHPMYADMIN_EDITOR'] ?? process.env['DEVMGR_PHP_EDITOR'];
+  let editor = readEnv('PHPMYADMIN_EDITOR') ?? readEnv('PHP_EDITOR');
   if (!editor) {
     editor = NOTEPAD_PLUS_PATHS.find((p) => p && fs.existsSync(p));
   }

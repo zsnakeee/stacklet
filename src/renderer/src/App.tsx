@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { lazy, Suspense, useState } from 'react';
 import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -8,14 +8,29 @@ import { Sidebar } from '@/components/shell/Sidebar';
 import { TopBar } from '@/components/shell/TopBar';
 import { bundledById, useStore } from '@/lib/store';
 import type { Status } from '@/lib/types';
-import { Dashboard } from '@/pages/Dashboard';
-import { Sites } from '@/pages/Sites';
-import { SiteDetail } from '@/pages/SiteDetail';
-import { Services } from '@/pages/Services';
-import { ServiceDetail } from '@/pages/ServiceDetail';
-import { Logs } from '@/pages/Logs';
-import { Mailpit } from '@/pages/Mailpit';
-import { Settings } from '@/pages/Settings';
+
+const Dashboard = lazy(() =>
+  import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })),
+);
+const Sites = lazy(() => import('@/pages/Sites').then((m) => ({ default: m.Sites })));
+const SiteDetail = lazy(() =>
+  import('@/pages/SiteDetail').then((m) => ({ default: m.SiteDetail })),
+);
+const Services = lazy(() =>
+  import('@/pages/Services').then((m) => ({ default: m.Services })),
+);
+const ServiceDetail = lazy(() =>
+  import('@/pages/ServiceDetail').then((m) => ({ default: m.ServiceDetail })),
+);
+const Logs = lazy(() => import('@/pages/Logs').then((m) => ({ default: m.Logs })));
+const Mailpit = lazy(() => import('@/pages/Mailpit').then((m) => ({ default: m.Mailpit })));
+const Settings = lazy(() =>
+  import('@/pages/Settings').then((m) => ({ default: m.Settings })),
+);
+
+function PageFallback() {
+  return <div className="min-h-[12rem] animate-pulse rounded-xl bg-surface/30" aria-hidden />;
+}
 
 function pageTitle(pathname: string, status: Status | null, t: TFunction): string {
   const raw = pathname.replace(/\/+$/, '') || '/';
@@ -85,16 +100,18 @@ function Layout() {
           <TopBar title={title} />
           {bootError && <BootErrorBanner message={bootError} />}
           <main className="min-h-0 flex-1 overflow-y-auto px-4 py-5 sm:px-6 sm:py-6">
-            <Routes>
-              <Route path="/" element={<Dashboard />} />
-              <Route path="/sites" element={<Sites />} />
-              <Route path="/sites/:name" element={<SiteDetail />} />
-              <Route path="/services" element={<Services />} />
-              <Route path="/services/:id" element={<ServiceDetail />} />
-              <Route path="/logs" element={<Logs />} />
-              <Route path="/mailpit" element={<Mailpit />} />
-              <Route path="/settings" element={<Settings />} />
-            </Routes>
+            <Suspense fallback={<PageFallback />}>
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/sites" element={<Sites />} />
+                <Route path="/sites/:name" element={<SiteDetail />} />
+                <Route path="/services" element={<Services />} />
+                <Route path="/services/:id" element={<ServiceDetail />} />
+                <Route path="/logs" element={<Logs />} />
+                <Route path="/mailpit" element={<Mailpit />} />
+                <Route path="/settings" element={<Settings />} />
+              </Routes>
+            </Suspense>
           </main>
         </div>
       </div>

@@ -1,6 +1,7 @@
 ﻿import fs from 'fs';
 import path from 'path';
 import { spawn } from 'child_process';
+import { readEnv } from '../shared/brand';
 import { getPhpInstallPath } from '../bundled/installed-versions';
 
 export const PHP_QUICK_KEYS = [
@@ -100,7 +101,7 @@ const NOTEPAD_PLUS_PATHS = [
 ];
 
 export function openPhpIniInEditor(iniPath: string): void {
-  let editor = process.env['DEVMGR_PHP_EDITOR'];
+  let editor = readEnv('PHP_EDITOR');
   if (!editor) {
     editor = NOTEPAD_PLUS_PATHS.find((p) => p && fs.existsSync(p));
   }

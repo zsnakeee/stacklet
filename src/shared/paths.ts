@@ -1,8 +1,9 @@
 ﻿import fs from 'fs';
 import path from 'path';
+import { BRAND, readEnv } from './brand';
 
-const DATA_DIR_NAME = 'stacklet';
-const LEGACY_DATA_DIR_NAME = 'devmgr';
+const DATA_DIR_NAME = BRAND.dataDirName;
+const LEGACY_DATA_DIR_NAME = BRAND.legacyDataDirName;
 
 // undefined = not yet checked, null = no override, string = custom data dir.
 let cachedOverride: string | null | undefined;
@@ -15,13 +16,13 @@ function baseDir(): string {
 
 /** Fixed pointer file (outside the data dir) holding a custom data-dir path. */
 function overridePointerPath(): string {
-  return path.join(baseDir(), 'stacklet.datadir');
+  return path.join(baseDir(), `${BRAND.slug}.datadir`);
 }
 
 /** Resolve a custom data-dir override (env or pointer file) once; cache the result. */
 function resolveOverride(): string | null {
   if (cachedOverride !== undefined) return cachedOverride;
-  const env = process.env['STACKLET_DATA_DIR'];
+  const env = readEnv('DATA_DIR');
   if (env && env.trim()) {
     cachedOverride = path.resolve(env.trim());
     return cachedOverride;
@@ -65,7 +66,7 @@ export function setDataDirOverride(dir: string | null): void {
  */
 export function migrateLegacyDataDir(): void {
   try {
-    if (process.env['STACKLET_DATA_DIR']) return;
+    if (readEnv('DATA_DIR')) return;
     if (fs.existsSync(overridePointerPath())) return;
     const next = path.join(baseDir(), DATA_DIR_NAME);
     const legacy = path.join(baseDir(), LEGACY_DATA_DIR_NAME);

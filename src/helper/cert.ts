@@ -1,5 +1,6 @@
 ﻿import { execFileSync } from 'child_process';
 import fs from 'fs';
+import { readEnv } from '../shared/brand';
 
 function runCertutilAddStore(
   certPath: string,
@@ -39,7 +40,7 @@ export function installRootCert(certPath: string): { installed: boolean; certPat
     throw new Error(`certificate not found: ${certPath}`);
   }
 
-  if (process.env['DEVMGR_MOCK_CERT'] === '1') {
+  if (readEnv('MOCK_CERT') === '1') {
     return { installed: true, certPath };
   }
 
@@ -58,7 +59,7 @@ export function installRootCertCurrentUser(certPath: string): { installed: boole
   if (!fs.existsSync(certPath)) {
     throw new Error(`certificate not found: ${certPath}`);
   }
-  if (process.env['DEVMGR_MOCK_CERT'] === '1') {
+  if (readEnv('MOCK_CERT') === '1') {
     return { installed: true, certPath };
   }
   if (process.platform !== 'win32') {

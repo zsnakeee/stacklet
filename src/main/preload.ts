@@ -1,9 +1,14 @@
 ﻿import { contextBridge, ipcRenderer } from 'electron';
-import type { BootstrapPhase, DevmgrAPI, InstallProgressPayload } from '../shared/ipc';
+import type { BootstrapPhase, InstallProgressPayload, StackletAPI } from '../shared/ipc';
 
-export type { BootstrapPhase, DevmgrAPI, InstallProgressPayload } from '../shared/ipc';
+// Must match BRAND.windowApi / BRAND.legacySlug in src/shared/brand.ts.
+// Do not import brand here — Electron's sandboxed preload cannot require app modules.
+const WINDOW_API = 'stacklet';
+const LEGACY_WINDOW_API = 'devmgr';
 
-const devmgrAPI: DevmgrAPI = {
+export type { BootstrapPhase, DevmgrAPI, InstallProgressPayload, StackletAPI } from '../shared/ipc';
+
+const stackletAPI: StackletAPI = {
   status: () => ipcRenderer.invoke('stacklet:status'),
   statusLive: () => ipcRenderer.invoke('stacklet:status:live'),
   config: () => ipcRenderer.invoke('stacklet:config'),
@@ -193,4 +198,6 @@ const devmgrAPI: DevmgrAPI = {
   },
 };
 
-contextBridge.exposeInMainWorld('devmgr', devmgrAPI);
+contextBridge.exposeInMainWorld(WINDOW_API, stackletAPI);
+/** @deprecated Pre-rename bridge — same object as `window.stacklet`. */
+contextBridge.exposeInMainWorld(LEGACY_WINDOW_API, stackletAPI);

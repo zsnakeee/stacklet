@@ -18,8 +18,8 @@ public static extern IntPtr SendMessageTimeout(
   IntPtr hWnd, uint Msg, UIntPtr wParam, string lParam,
   uint fuFlags, uint uTimeout, out IntPtr lpdwResult);
 '@
-Add-Type -MemberDefinition $sig -Name SendMessageTimeoutNative -Namespace DevMgrWin32
-[void][DevMgrWin32.SendMessageTimeoutNative]::SendMessageTimeout(
+Add-Type -MemberDefinition $sig -Name SendMessageTimeoutNative -Namespace StackletWin32
+[void][StackletWin32.SendMessageTimeoutNative]::SendMessageTimeout(
   [IntPtr]0xffff, 0x1A, [UIntPtr]::Zero, 'Environment', 2, 5000, [ref]$null)
 `;
 

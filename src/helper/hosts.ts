@@ -1,22 +1,22 @@
 ﻿import fs from 'fs';
 import path from 'path';
+import { BRAND, legacyHostsMarkers, readEnv } from '../shared/brand';
 
-export const HOSTS_MARKER_BEGIN = '# BEGIN stacklet';
-export const HOSTS_MARKER_END = '# END stacklet';
+export const HOSTS_MARKER_BEGIN = BRAND.hostsMarkerBegin;
+export const HOSTS_MARKER_END = BRAND.hostsMarkerEnd;
 
-/** Legacy markers (pre-rename) — removed during sync so they don't linger. */
-const LEGACY_MARKER_BEGIN = '# BEGIN devmgr';
-const LEGACY_MARKER_END = '# END devmgr';
+const LEGACY_MARKER_BEGIN = legacyHostsMarkers().begin;
+const LEGACY_MARKER_END = legacyHostsMarkers().end;
 
 /** System hosts file, overridable via STACKLET_HOSTS_PATH (or legacy DEVMGR_HOSTS_PATH). */
 export function getHostsPath(): string {
-  const override = process.env['STACKLET_HOSTS_PATH'] ?? process.env['DEVMGR_HOSTS_PATH'];
+  const override = readEnv('HOSTS_PATH');
   if (override) return override;
   const systemRoot = process.env['SystemRoot'] ?? 'C:\\Windows';
   return path.join(systemRoot, 'System32', 'drivers', 'etc', 'hosts');
 }
 
-/** Remove a legacy devmgr-marked block (migration to the stacklet marker). */
+/** Remove a legacy hosts block (migration to the current marker). */
 function stripLegacyBlock(content: string): string {
   const begin = content.indexOf(LEGACY_MARKER_BEGIN);
   if (begin === -1) return content;
@@ -44,9 +44,8 @@ function hostnameLineMatches(line: string, hostname: string): boolean {
 }
 
 /**
- * Read the body lines inside the devmgr marker block. Returns null if the block
- * is absent. Everything OUTSIDE this block is the user's data and is never
- * touched by Stacklet.
+ * Read the body lines inside the managed marker block. Returns null if absent.
+ * Everything OUTSIDE this block is the user's data and is never touched.
  */
 function getMarkerBlockBody(content: string): string[] | null {
   const beginIdx = content.indexOf(HOSTS_MARKER_BEGIN);
@@ -85,7 +84,6 @@ export function hostsAdd(
     ? normalizeLineEndings(fs.readFileSync(hostsPath, 'utf8'))
     : '';
 
-  // Only touch the managed block — never the user's other entries.
   content = ensureMarkerBlock(content);
   const body = (getMarkerBlockBody(content) ?? []).filter(
     (line) => !hostnameLineMatches(line, hostname),
@@ -111,7 +109,6 @@ export function hostsRemove(
 
   let content = normalizeLineEndings(fs.readFileSync(hostsPath, 'utf8'));
 
-  // Remove the mapping only from inside the managed block.
   const body = getMarkerBlockBody(content);
   if (body) {
     content = replaceMarkerBlockBody(
@@ -142,7 +139,7 @@ function replaceMarkerBlockBody(content: string, bodyLines: string[]): string {
   const beginIdx = content.indexOf(HOSTS_MARKER_BEGIN);
   const endIdx = content.indexOf(HOSTS_MARKER_END, beginIdx);
   if (beginIdx === -1 || endIdx === -1) {
-    throw new Error('devmgr hosts marker block is missing');
+    throw new Error(`${BRAND.name} hosts marker block is missing`);
   }
   const before = content.slice(0, beginIdx + HOSTS_MARKER_BEGIN.length);
   const after = content.slice(endIdx);
@@ -183,7 +180,7 @@ function hostsLineHasMapping(content: string, ip: string, hostname: string): boo
   return lineRe.test(content);
 }
 
-/** Rewrite the devmgr hosts block in one pass (faster than many hosts:add calls). */
+/** Rewrite the managed hosts block in one pass (faster than many hosts:add calls). */
 export function hostsSync(
   hostnames: string[],
   ip: string = '127.0.0.1',
@@ -195,9 +192,6 @@ export function hostsSync(
     : '';
 
   content = stripLegacyBlock(content);
-
-  // Rebuild ONLY the managed block; the user's other hosts entries (any IP,
-  // any hostname, comments, blank lines) are left exactly as they were.
   content = ensureMarkerBlock(content);
   const lines = unique.map((hostname) => `${ip} ${hostname}`);
   content = replaceMarkerBlockBody(content, lines);

@@ -4,7 +4,9 @@ import { app, BrowserWindow, dialog, ipcMain, shell } from 'electron';
 import { Orchestrator, type AppSettingsPatch, type BootstrapPhase } from '../engine/orchestrator';
 import type { BundledServiceId } from '../bundled/types';
 import { getDataDir } from '../shared/paths';
+import { readEnv } from '../shared/brand';
 import { openLogWindow } from './log-window';
+import { runEngineWork } from './engine-work';
 
 let engine: Orchestrator | null = null;
 
@@ -27,14 +29,17 @@ export async function shutdownEngineOnQuit(): Promise<void> {
 export async function bootstrapEngineOnLaunch(
   getWindow: () => BrowserWindow | null,
 ): Promise<void> {
-  if (process.env['DEVMGR_SKIP_AUTOSTART'] === '1') return;
+  if (readEnv('SKIP_AUTOSTART') === '1') return;
 
   const notify = (phase: BootstrapPhase): void => {
     getWindow()?.webContents.send('stacklet:bootstrap:phase', phase);
   };
 
+  // Let the renderer finish its first paint + statusLive IPC before heavy work.
+  await new Promise<void>((resolve) => setImmediate(resolve));
+
   try {
-    await getEngine().bootstrapOnLaunch((phase) => notify(phase));
+    await runEngineWork(() => getEngine().bootstrapOnLaunch((phase) => notify(phase)));
     notify('ready');
     getWindow()?.webContents.send('stacklet:bootstrap:done');
   } catch (err) {
@@ -62,7 +67,9 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stacklet:shell:openExternal', async (_e, url: string) => {
     await openExternalHttpUrl(url);
   });
-  ipcMain.handle('stacklet:status', async () => getEngine().status());
+  ipcMain.handle('stacklet:status', async () =>
+    runEngineWork(() => getEngine().status()),
+  );
   ipcMain.handle('stacklet:status:live', async () => getEngine().statusLive());
   ipcMain.handle('stacklet:sites', () => getEngine().getSites());
   ipcMain.handle('stacklet:config', () => getEngine().getConfig());
@@ -78,8 +85,10 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     }
     return { config: getEngine().getConfig(), status: await getEngine().status() };
   });
-  ipcMain.handle('stacklet:ssl:status', () => getEngine().getSslTrustStatus());
-  ipcMain.handle('stacklet:ssl:trust', async () => getEngine().trustSslCertificate());
+  ipcMain.handle('stacklet:ssl:status', async () => getEngine().getSslTrustStatusAsync());
+  ipcMain.handle('stacklet:ssl:trust', async () =>
+    runEngineWork(() => getEngine().trustSslCertificate()),
+  );
   ipcMain.handle('stacklet:env:info', () => getEngine().getEnvironmentInfo());
   ipcMain.handle('stacklet:env:sync', async () => getEngine().syncEnvironmentPath());
   ipcMain.handle('stacklet:env:restart', async (_e, openTerminal?: boolean) =>
@@ -115,11 +124,13 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     const err = await shell.openPath(resolved);
     if (err) throw new Error(err);
   });
-  ipcMain.handle('stacklet:apply', async () => {
-    await getEngine().apply();
-    return getEngine().status();
-  });
-  ipcMain.handle('stacklet:reloadAll', async () => getEngine().reloadAll());
+  ipcMain.handle('stacklet:apply', async () =>
+    runEngineWork(async () => {
+      await getEngine().apply({ backgroundPhpMaintenance: true, syncPath: false });
+      return getEngine().status();
+    }),
+  );
+  ipcMain.handle('stacklet:reloadAll', async () => runEngineWork(() => getEngine().reloadAll()));
   ipcMain.handle('stacklet:setWebServer', async (_e, server: 'nginx' | 'apache') => {
     await getEngine().setWebServer(server);
     return getEngine().status();
@@ -140,22 +151,30 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     const result = await getEngine().syncHostsIfNeeded();
     return { ...result, status: await getEngine().status() };
   });
-  ipcMain.handle('stacklet:start', async () => {
-    await getEngine().start();
-    return getEngine().status();
-  });
-  ipcMain.handle('stacklet:stop', async () => {
-    await getEngine().stop();
-    return getEngine().status();
-  });
-  ipcMain.handle('stacklet:service:start', async (_e, name: string) => {
-    await getEngine().startService(name);
-    return getEngine().status();
-  });
-  ipcMain.handle('stacklet:service:stop', async (_e, name: string) => {
-    await getEngine().stopService(name);
-    return getEngine().status();
-  });
+  ipcMain.handle('stacklet:start', async () =>
+    runEngineWork(async () => {
+      await getEngine().start();
+      return getEngine().status();
+    }),
+  );
+  ipcMain.handle('stacklet:stop', async () =>
+    runEngineWork(async () => {
+      await getEngine().stop();
+      return getEngine().status();
+    }),
+  );
+  ipcMain.handle('stacklet:service:start', async (_e, name: string) =>
+    runEngineWork(async () => {
+      await getEngine().startService(name);
+      return getEngine().status();
+    }),
+  );
+  ipcMain.handle('stacklet:service:stop', async (_e, name: string) =>
+    runEngineWork(async () => {
+      await getEngine().stopService(name);
+      return getEngine().status();
+    }),
+  );
   ipcMain.handle('stacklet:php:versions', () => getEngine().listPhpVersions());
   ipcMain.handle('stacklet:php:default', () => getEngine().getDefaultPhpVersion());
   ipcMain.handle('stacklet:php:setDefault', async (_e, version: string) => {

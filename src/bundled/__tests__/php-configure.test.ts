@@ -1,4 +1,5 @@
 ﻿import fs from 'fs';
+import { BRAND } from '../../shared/brand';
 import os from 'os';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
@@ -55,7 +56,7 @@ describe('ensurePhpIni', () => {
     const content = fs.readFileSync(path.join(root, 'php.ini'), 'utf8');
     expect(content).toMatch(/^opcache\.file_cache\s*=/m);
     expect(content).toMatch(/^opcache\.file_cache_fallback\s*=\s*1/m);
-    expect(content).toMatch(/^opcache\.cache_id\s*=\s*devmgr-cgi-/m);
+    expect(content).toMatch(new RegExp(`^opcache\\.cache_id\\s*=\\s*${BRAND.slug}-cgi-`, 'm'));
   });
 
   it('comments out stale CA paths when the bundle is missing', () => {

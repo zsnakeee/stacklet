@@ -11,6 +11,10 @@ import {
   getLeafCertPath,
   getLeafKeyPath,
 } from '../shared/paths';
+import { BRAND, LEAF_CN } from '../shared/brand';
+
+/** @deprecated Use {@link LEAF_CN}. */
+export { LEAF_CN as DEV_MGR_LEAF_CN } from '../shared/brand';
 
 export interface DevCerts {
   caCertPath: string;
@@ -31,12 +35,9 @@ function sanListsEqual(a: string[], b: string[]): boolean {
   return sa.every((v, i) => v === sb[i]);
 }
 
-/** CN for the shared leaf — not tied to any site (browsers match hostnames via SAN). */
-export const DEV_MGR_LEAF_CN = 'dev-mgr.local';
-
 /** DNS names for the leaf cert. Firefox requires explicit names (not only *.test) on the .test TLD. */
 export function collectTlsSanNames(config: DevConfig, sites: Site[]): string[] {
-  const names = new Set<string>(['*.test', 'test', DEV_MGR_LEAF_CN]);
+  const names = new Set<string>(['*.test', 'test', LEAF_CN, BRAND.legacyLeafCommonName]);
   for (const site of sites) {
     if (site.enabled === false) continue;
     if (site.hostname) names.add(site.hostname.trim().toLowerCase());
@@ -99,7 +100,7 @@ function createCa(): { cert: forge.pki.Certificate; keys: forge.pki.rsa.KeyPair 
   cert.validity.notAfter = new Date();
   cert.validity.notAfter.setFullYear(cert.validity.notBefore.getFullYear() + 10);
 
-  const attrs = [{ name: 'commonName', value: 'DevMgr Local CA' }];
+  const attrs = [{ name: 'commonName', value: BRAND.caCommonName }];
   cert.setSubject(attrs);
   cert.setIssuer(attrs);
   cert.setExtensions([
@@ -116,7 +117,7 @@ function createCa(): { cert: forge.pki.Certificate; keys: forge.pki.rsa.KeyPair 
 }
 
 function leafCommonName(): string {
-  return DEV_MGR_LEAF_CN;
+  return LEAF_CN;
 }
 
 function createLeaf(

@@ -1,4 +1,5 @@
 ﻿import { describe, expect, it } from 'vitest';
+import { LEAF_CN, BRAND } from '../../shared/brand';
 import { collectTlsSanNames } from '../tls';
 import type { DevConfig, Site } from '../../config/types';
 
@@ -18,7 +19,9 @@ const site = (over: Partial<Site>): Site => ({
 
 describe('collectTlsSanNames', () => {
   it('always includes wildcard and apex', () => {
-    expect(collectTlsSanNames(config, [])).toEqual(['*.test', 'dev-mgr.local', 'test']);
+    expect(collectTlsSanNames(config, [])).toEqual(
+      ['*.test', BRAND.legacyLeafCommonName, LEAF_CN, 'test'].sort(),
+    );
   });
   it('includes site hostname and aliases', () => {
     const names = collectTlsSanNames(config, [site({ aliases: ['www.a.test'] })]);
