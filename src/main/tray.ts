@@ -1,5 +1,5 @@
 ﻿import path from 'path';
-import { app, Menu, Tray, nativeImage, BrowserWindow } from 'electron';
+import { app, Menu, Tray, nativeImage } from 'electron';
 import { BRAND } from '../shared/brand';
 import { getEngine } from './engine-bridge';
 
@@ -19,7 +19,7 @@ function trayIcon(): Electron.NativeImage {
   return img.resize({ width: 16, height: 16 });
 }
 
-export function createTray(getWindow: () => BrowserWindow | null): Tray {
+export function createTray(showWindow: () => void): Tray {
   tray = new Tray(trayIcon());
   tray.setToolTip(BRAND.name);
 
@@ -36,13 +36,7 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
         { type: 'separator' },
         {
           label: 'Open',
-          click: () => {
-            const win = getWindow();
-            if (win) {
-              win.show();
-              win.focus();
-            }
-          },
+          click: () => showWindow(),
         },
         {
           label: 'Apply config',
@@ -77,13 +71,8 @@ export function createTray(getWindow: () => BrowserWindow | null): Tray {
   };
 
   rebuildMenu();
-  tray.on('double-click', () => {
-    const win = getWindow();
-    if (win) {
-      win.show();
-      win.focus();
-    }
-  });
+  tray.on('double-click', () => showWindow());
+  tray.on('click', () => showWindow());
 
   return tray;
 }

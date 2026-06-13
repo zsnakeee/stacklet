@@ -206,15 +206,37 @@ function getWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+/**
+ * Reliably surface the main window: recreate it if it was destroyed (the app
+ * keeps running in the tray, so a re-launch must be able to bring it back),
+ * un-hide/restore it, and force it to the foreground. Used by the
+ * second-instance handler and the tray so launching again always shows a window
+ * instead of silently doing nothing.
+ */
+function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createWindow(readGeneralPrefs());
+    // Force-show even if "start minimized" is set — this is an explicit re-launch.
+    mainWindow.once('ready-to-show', () => mainWindow?.show());
+    return;
+  }
+  const win = mainWindow;
+  if (!win.isVisible()) win.show();
+  if (win.isMinimized()) win.restore();
+  // Briefly pin to top so it pops above other windows, then release.
+  win.setAlwaysOnTop(true);
+  win.show();
+  win.focus();
+  setTimeout(() => {
+    if (!win.isDestroyed()) win.setAlwaysOnTop(false);
+  }, 300);
+}
+
 // A second launch was blocked by the single-instance lock above. Bring the
 // already-running window to the front instead of doing nothing (the user clicked
 // the icon expecting Stacklet to appear).
 app.on('second-instance', () => {
-  const win = getWindow();
-  if (!win) return;
-  if (!win.isVisible()) win.show();
-  if (win.isMinimized()) win.restore();
-  win.focus();
+  showMainWindow();
 });
 
 app.whenReady().then(() => {
@@ -231,7 +253,7 @@ app.whenReady().then(() => {
     // login-item registration is best-effort
   }
   mainWindow = createWindow(prefs);
-  createTray(getWindow);
+  createTray(showMainWindow);
   // Paint the window first; engine init + autostart can block the main thread.
   mainWindow.webContents.once('did-finish-load', () => {
     void bootstrapEngineOnLaunch(getWindow);
