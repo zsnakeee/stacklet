@@ -29,9 +29,19 @@ export interface HelperRuntime {
 
 export function isElevated(): boolean {
   if (process.platform !== 'win32') return false;
+  // NOTE: `net session` is unreliable — on some machines it exits 0 for a
+  // NON-elevated user, which made the app believe it was already admin and skip
+  // the UAC relaunch entirely. Check the process integrity level instead: a
+  // UAC-elevated process runs at "High" (SID S-1-16-12288) or "System"
+  // (S-1-16-16384); a normal process runs at "Medium" (S-1-16-8192).
   try {
-    execFileSync('net', ['session'], { stdio: 'ignore' });
-    return true;
+    const whoami = path.join(
+      process.env['SystemRoot'] ?? 'C:\\Windows',
+      'System32',
+      'whoami.exe',
+    );
+    const out = execFileSync(whoami, ['/groups'], { encoding: 'utf8' });
+    return out.includes('S-1-16-12288') || out.includes('S-1-16-16384');
   } catch {
     return false;
   }
@@ -108,14 +118,27 @@ async function waitForPipe(timeoutMs: number = PIPE_READY_TIMEOUT_MS): Promise<v
 }
 
 export function resolveServerPath(): string {
-  const alongside = path.join(__dirname, 'server.js');
-  if (fs.existsSync(alongside)) return alongside;
-
-  const fromDist = path.resolve(__dirname, '..', '..', 'dist', 'helper', 'server.js');
-  if (fs.existsSync(fromDist)) return fromDist;
+  // When packaged, __dirname is inside app.asar (…\app.asar\dist\helper). The
+  // helper is launched as a SEPARATE elevated process under plain node.exe,
+  // which cannot read files inside an asar archive (asar support is an Electron
+  // patch). electron-builder is therefore configured to unpack dist/helper +
+  // dist/shared to app.asar.unpacked; prefer that real on-disk copy. (In dev /
+  // tests the path has no "app.asar" segment, so the rewrite is a no-op.)
+  const candidates = [
+    path.join(__dirname, 'server.js'),
+    path.resolve(__dirname, '..', '..', 'dist', 'helper', 'server.js'),
+  ];
+  for (const candidate of candidates) {
+    const unpacked = candidate.replace(
+      `app.asar${path.sep}`,
+      `app.asar.unpacked${path.sep}`,
+    );
+    if (unpacked !== candidate && fs.existsSync(unpacked)) return unpacked;
+    if (fs.existsSync(candidate)) return candidate;
+  }
 
   throw new Error(
-    `Helper server not found (expected ${alongside}). Run: npm run build`,
+    `Helper server not found (expected ${candidates[0]}). Run: npm run build`,
   );
 }
 
@@ -131,6 +154,11 @@ function writeLauncherCmd(
   if (runtime.useElectronRunAsNode) {
     lines.push('set ELECTRON_RUN_AS_NODE=1');
   }
+  // Pin the data dir so the ELEVATED helper resolves the same location as the
+  // app. Without this it reads the admin account's %LOCALAPPDATA% (or the
+  // install default) and would write helper.token to the wrong folder when the
+  // user has relocated their data dir (e.g. to F:\ProgramData\stacklet).
+  lines.push(`set "${envVar('DATA_DIR')}=${getDataDir()}"`);
   lines.push(`"${runtime.executable}" "${serverPath}" 1>>"${logPath}" 2>&1`);
   fs.writeFileSync(launcherPath, lines.join('\r\n') + '\r\n', 'utf8');
   return launcherPath;
@@ -144,6 +172,8 @@ function spawnHelperDetached(runtime: HelperRuntime, serverPath: string): void {
   if (runtime.useElectronRunAsNode) {
     env['ELECTRON_RUN_AS_NODE'] = '1';
   }
+  // Ensure the helper resolves the app's data dir (see writeLauncherCmd note).
+  env[envVar('DATA_DIR')] = getDataDir();
 
   const child = spawn(runtime.executable, [serverPath], {
     detached: true,

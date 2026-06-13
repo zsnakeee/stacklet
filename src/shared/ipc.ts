@@ -21,6 +21,33 @@ export type BootstrapPhase =
   | 'finishing'
   | 'ready';
 
+/** An error captured in the renderer and forwarded to the main-process log file. */
+export interface RendererErrorReport {
+  /** Where it came from: a thrown error, a rejected promise, console.error, or React. */
+  source: 'window.onerror' | 'unhandledrejection' | 'console.error' | 'react';
+  message: string;
+  stack?: string;
+  /** Originating URL/route (window.location.hash) for context. */
+  url?: string;
+  /** React component stack, when source === 'react'. */
+  componentStack?: string;
+}
+
+/** ngrok install + auth status (auto-installed into the data dir). */
+export interface NgrokInfo {
+  installed: boolean;
+  authConfigured: boolean;
+  dir: string;
+  exePath: string;
+}
+
+/** Cmder (Clink) install status (auto-installed into the data dir). */
+export interface CmderInfo {
+  installed: boolean;
+  dir: string;
+  initBat: string;
+}
+
 export interface StackletAPI {
   status: () => Promise<unknown>;
   statusLive: () => Promise<{
@@ -48,6 +75,7 @@ export interface StackletAPI {
   sitesRemove: (name: string) => Promise<unknown>;
   dialog: {
     pickDirectory: () => Promise<string | null>;
+    pickFile: (opts?: { name?: string; extensions?: string[] }) => Promise<string | null>;
   };
   service: {
     start: (name: string) => Promise<unknown>;
@@ -93,6 +121,26 @@ export interface StackletAPI {
     openConf: (version?: string) => Promise<void>;
     restart: () => Promise<unknown>;
   };
+  redis: {
+    getSettings: () => Promise<{
+      port: number;
+      password: string;
+      maxmemory: string;
+      maxmemoryPolicy: string;
+      appendonly: boolean;
+      configPath: string;
+      aclSupported: boolean;
+    }>;
+    saveSettings: (patch: {
+      port?: number;
+      password?: string;
+      maxmemory?: string;
+      maxmemoryPolicy?: string;
+      appendonly?: boolean;
+    }) => Promise<unknown>;
+    openConf: () => Promise<void>;
+    restart: () => Promise<unknown>;
+  };
   services: {
     catalog: () => Promise<unknown>;
     refresh: () => Promise<unknown>;
@@ -113,6 +161,11 @@ export interface StackletAPI {
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;
     setDocRoot: (name: string, docRoot: string | null) => Promise<unknown>;
+    setRewrite: (
+      name: string,
+      patch: { rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa'; nginx_extra?: string },
+    ) => Promise<unknown>;
+    openWebConfig: (name: string) => Promise<{ path: string }>;
     setPhpVersion: (name: string, version: string | null) => Promise<unknown>;
     setReverb: (
       name: string,
@@ -194,9 +247,29 @@ export interface StackletAPI {
   shell: {
     openExternal: (url: string) => Promise<void>;
   };
+  diagnostics: {
+    /** Forward a renderer-side error to the main-process app.log file. */
+    report: (error: RendererErrorReport) => void;
+    /** Reveal the app.log error file in the OS file manager. */
+    openLog: () => Promise<void>;
+    /** Absolute path to the app.log file (null if it can't be resolved). */
+    logPath: () => Promise<string | null>;
+  };
   composer: {
     status: () => Promise<{ installed: boolean; dir: string; pharPath: string }>;
     install: () => Promise<{ installed: boolean; dir: string; pharPath: string }>;
+  };
+  ngrok: {
+    status: () => Promise<NgrokInfo>;
+    install: () => Promise<NgrokInfo>;
+    setAuthToken: (token: string) => Promise<NgrokInfo>;
+    setPath: (exePath: string) => Promise<NgrokInfo>;
+    onProgress: (callback: (message: string) => void) => () => void;
+  };
+  cmder: {
+    status: () => Promise<CmderInfo>;
+    install: () => Promise<CmderInfo>;
+    onProgress: (callback: (message: string) => void) => () => void;
   };
   ssl: {
     status: () => Promise<{ trusted: boolean; caCertPath: string }>;
@@ -215,10 +288,12 @@ export interface StackletAPI {
         path_in_env?: boolean;
         path_env_selected?: string[];
         start_minimized?: boolean;
-        start_maximized?: boolean;
+        close_to_tray?: boolean;
         autostart?: boolean;
         launch_on_login?: boolean;
         xdebug?: boolean;
+        enhanced_terminal?: boolean;
+        default_site?: string;
       };
       services?: Record<string, { enabled?: boolean }>;
     }) => Promise<unknown>;
@@ -226,9 +301,41 @@ export interface StackletAPI {
     relocateDataDir: (
       newDir: string,
     ) => Promise<{ ok: boolean; message: string; path: string }>;
+    /** Point Stacklet at an existing data folder from a previous install (no move). */
+    useExistingDataDir: (
+      dir: string,
+    ) => Promise<{ ok: boolean; message: string; path: string }>;
     setProjectsDir: (dir: string | null) => Promise<unknown>;
   };
+  update: {
+    /** Current app version + last known update status (supported=false in dev). */
+    current: () => Promise<{ version: string; status: UpdateStatus; supported: boolean }>;
+    /** Ask GitHub whether a newer release exists. */
+    check: () => Promise<UpdateStatus>;
+    /** Download the available update (installer + blockmap delta). */
+    download: () => Promise<UpdateStatus>;
+    /** Quit and install a downloaded update, then relaunch. */
+    install: () => void;
+    /** Subscribe to update status pushes; returns an unsubscribe fn. */
+    onStatus: (callback: (status: UpdateStatus) => void) => () => void;
+  };
 }
+
+/** Auto-update lifecycle status pushed from the main process. */
+export type UpdateStatus =
+  | { state: 'idle' }
+  | { state: 'checking' }
+  | { state: 'available'; version: string; notes?: string }
+  | { state: 'not-available'; version: string }
+  | {
+      state: 'downloading';
+      percent: number;
+      transferred: number;
+      total: number;
+      bytesPerSecond: number;
+    }
+  | { state: 'downloaded'; version: string }
+  | { state: 'error'; message: string };
 
 /** @deprecated Use {@link StackletAPI}. */
 export type DevmgrAPI = StackletAPI;

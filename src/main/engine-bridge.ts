@@ -96,6 +96,26 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   );
   ipcMain.handle('stacklet:composer:status', () => getEngine().getComposerStatus());
   ipcMain.handle('stacklet:composer:install', async () => getEngine().installComposer());
+  ipcMain.handle('stacklet:ngrok:status', () => getEngine().getNgrokStatus());
+  ipcMain.handle('stacklet:ngrok:install', async () => {
+    const win = getWindow();
+    return getEngine().installNgrok((message) => {
+      win?.webContents.send('stacklet:ngrok:progress', message);
+    });
+  });
+  ipcMain.handle('stacklet:ngrok:setAuthToken', async (_e, token: string) =>
+    getEngine().setNgrokAuthToken(token),
+  );
+  ipcMain.handle('stacklet:ngrok:setPath', async (_e, exePath: string) =>
+    getEngine().setNgrokPath(exePath),
+  );
+  ipcMain.handle('stacklet:cmder:status', () => getEngine().getCmderStatus());
+  ipcMain.handle('stacklet:cmder:install', async () => {
+    const win = getWindow();
+    return getEngine().installCmder((message) => {
+      win?.webContents.send('stacklet:cmder:progress', message);
+    });
+  });
   ipcMain.handle('stacklet:settings:openPath', async (_e, targetPath: string) => {
     const root = path.resolve(getDataDir());
     const resolved = path.resolve(targetPath);
@@ -141,6 +161,9 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   });
   ipcMain.handle('stacklet:settings:relocateDataDir', async (_e, newDir: string) =>
     getEngine().relocateDataDir(newDir),
+  );
+  ipcMain.handle('stacklet:settings:useExistingDataDir', async (_e, dir: string) =>
+    getEngine().useExistingDataDir(dir),
   );
   ipcMain.handle('stacklet:settings:setProjectsDir', async (_e, dir: string | null) => {
     await getEngine().setProjectsDir(dir);
@@ -275,6 +298,30 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     await getEngine().restartNginx();
     return getEngine().status();
   });
+  ipcMain.handle('stacklet:redis:settings', () => getEngine().getRedisSettings());
+  ipcMain.handle(
+    'stacklet:redis:saveSettings',
+    async (
+      _e,
+      patch: {
+        port?: number;
+        password?: string;
+        maxmemory?: string;
+        maxmemoryPolicy?: string;
+        appendonly?: boolean;
+      },
+    ) => {
+      await getEngine().saveRedisSettings(patch);
+      return getEngine().getRedisSettings();
+    },
+  );
+  ipcMain.handle('stacklet:redis:openConf', () => {
+    getEngine().openRedisConf();
+  });
+  ipcMain.handle('stacklet:redis:restart', async () => {
+    await getEngine().restartRedis();
+    return getEngine().status();
+  });
   ipcMain.handle('stacklet:php:restart', async () => {
     await getEngine().restartPhp();
     return getEngine().status();
@@ -326,6 +373,19 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
       const sites = await getEngine().setSiteDocRoot(name, docRoot);
       return { sites, status: await getEngine().status() };
     },
+  );
+  ipcMain.handle(
+    'stacklet:sites:setRewrite',
+    async (_e, name: string, patch: { rewrite?: string; nginx_extra?: string }) => {
+      const sites = await getEngine().setSiteRewrite(
+        name,
+        patch as { rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa'; nginx_extra?: string },
+      );
+      return { sites, status: await getEngine().status() };
+    },
+  );
+  ipcMain.handle('stacklet:sites:openWebConfig', (_e, name: string) =>
+    getEngine().openSiteWebConfig(name),
   );
   ipcMain.handle(
     'stacklet:sites:setPhpVersion',
@@ -410,6 +470,20 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     const result = win
       ? await dialog.showOpenDialog(win, opts)
       : await dialog.showOpenDialog(opts);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+  ipcMain.handle('stacklet:dialog:file', async (_e, opts?: { name?: string; extensions?: string[] }) => {
+    const win = getWindow();
+    const dialogOpts = {
+      properties: ['openFile'] as ('openFile')[],
+      filters: opts?.extensions
+        ? [{ name: opts.name ?? 'Files', extensions: opts.extensions }]
+        : undefined,
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, dialogOpts)
+      : await dialog.showOpenDialog(dialogOpts);
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });

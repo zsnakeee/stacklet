@@ -21,6 +21,9 @@ export const RUNTIME_ROWS = [
 /** Web inbox port for Mailpit (matches config default mailpit.ui_port). */
 export const MAILPIT_UI_PORT = 8025;
 
+/** SMTP port apps send mail to (matches config default mailpit.port). */
+export const MAILPIT_SMTP_PORT = 1025;
+
 export const BUNDLED_RUNTIME: Record<string, string> = Object.fromEntries(
   RUNTIME_ROWS.map((r) => [r.bundledId, r.runtime]),
 );
@@ -99,7 +102,16 @@ export const MYSQL_QUICK_FIELDS: QuickField[] = [
 ];
 
 /** Logs page: kinds shown (service logs only — per-site logs live on the site page). */
-export const LOG_PAGE_KIND_ORDER = ['nginx', 'apache', 'php', 'mysql', 'postgres', 'redis'];
+export const LOG_PAGE_KIND_ORDER = [
+  'nginx',
+  'apache',
+  'php',
+  'mysql',
+  'postgres',
+  'redis',
+  'mongodb',
+  'mailpit',
+];
 export const LOG_PAGE_EXCLUDED_KINDS = new Set(['site', 'laravel']);
 export const LOG_KIND_LABELS: Record<string, string> = {
   nginx: 'Nginx',
@@ -108,4 +120,6 @@ export const LOG_KIND_LABELS: Record<string, string> = {
   mysql: 'MySQL',
   postgres: 'PostgreSQL',
   redis: 'Redis',
+  mongodb: 'MongoDB',
+  mailpit: 'Mailpit',
 };

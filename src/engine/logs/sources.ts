@@ -2,13 +2,66 @@
 import path from 'path';
 import type { Site } from '../../config/types';
 import { findLaravelLogPaths } from '../sites';
-import { getLogsDir } from '../../shared/paths';
+import { getLogsDir, getServicesDir } from '../../shared/paths';
+
+/** Map a service folder name under \services to a log kind + label. */
+const SERVICE_LOG_KINDS: Record<string, { kind: LogSource['kind']; label: string }> = {
+  nginx: { kind: 'nginx', label: 'Nginx' },
+  apache: { kind: 'apache', label: 'Apache' },
+  mysql: { kind: 'mysql', label: 'MySQL' },
+  mariadb: { kind: 'mysql', label: 'MariaDB' },
+  postgres: { kind: 'postgres', label: 'PostgreSQL' },
+  postgresql: { kind: 'postgres', label: 'PostgreSQL' },
+  redis: { kind: 'redis', label: 'Redis' },
+  mongodb: { kind: 'mongodb', label: 'MongoDB' },
+  mailpit: { kind: 'mailpit', label: 'Mailpit' },
+};
+
+/** Collect *.log files from each installed service's own \services\<svc>\<ver>\logs dir. */
+function pushServiceInstallLogs(sources: LogSource[]): void {
+  const servicesDir = getServicesDir();
+  if (!fs.existsSync(servicesDir)) return;
+  for (const svc of fs.readdirSync(servicesDir, { withFileTypes: true })) {
+    if (!svc.isDirectory()) continue;
+    const meta = SERVICE_LOG_KINDS[svc.name.toLowerCase()];
+    if (!meta) continue;
+    const svcDir = path.join(servicesDir, svc.name);
+    for (const ver of fs.readdirSync(svcDir, { withFileTypes: true })) {
+      if (!ver.isDirectory()) continue;
+      // Logs usually live in <ver>\logs; some services log in the version root.
+      for (const sub of ['logs', '']) {
+        const dir = sub ? path.join(svcDir, ver.name, sub) : path.join(svcDir, ver.name);
+        if (!fs.existsSync(dir)) continue;
+        for (const file of fs.readdirSync(dir)) {
+          if (!file.endsWith('.log')) continue;
+          const full = path.join(dir, file);
+          sources.push({
+            id: `svc:${svc.name}:${ver.name}:${sub || 'root'}:${file.replace(/\.log$/, '')}`,
+            label: `${meta.label} ${ver.name} ${file}`,
+            path: full,
+            kind: meta.kind,
+          });
+        }
+      }
+    }
+  }
+}
 
 export interface LogSource {
   id: string;
   label: string;
   path: string;
-  kind: 'apache' | 'nginx' | 'php' | 'mysql' | 'postgres' | 'redis' | 'site' | 'laravel';
+  kind:
+    | 'apache'
+    | 'nginx'
+    | 'php'
+    | 'mysql'
+    | 'postgres'
+    | 'redis'
+    | 'mongodb'
+    | 'mailpit'
+    | 'site'
+    | 'laravel';
 }
 
 function pushGlob(
@@ -41,6 +94,9 @@ export function buildLogSources(sites: Site[], phpVersion: string): LogSource[] 
   pushGlob(sources, 'mysql', 'MySQL', path.join(logsDir, 'mysql'), 'mysql');
   pushGlob(sources, 'postgres', 'PostgreSQL', path.join(logsDir, 'postgres'), 'postgres');
   pushGlob(sources, 'redis', 'Redis', path.join(logsDir, 'redis'), 'redis');
+
+  // Each service also writes logs inside its own install dir (\services\<svc>\<ver>\logs).
+  pushServiceInstallLogs(sources);
   pushGlob(
     sources,
     `php:${phpVersion}`,

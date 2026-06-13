@@ -13,10 +13,12 @@ export function defaultConfig(): DevConfig {
       path_in_env: true,
       path_env_selected: [],
       start_minimized: false,
-      start_maximized: false,
+      close_to_tray: true,
       autostart: true,
       launch_on_login: false,
       xdebug: false,
+      enhanced_terminal: true,
+      default_site: '',
     },
     services: {
       nginx: {

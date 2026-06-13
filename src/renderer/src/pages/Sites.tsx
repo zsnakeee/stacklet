@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Empty, Field, IconButton, Input, Spinner } from '@/components/ui/primitives';
 import { Modal } from '@/components/ui/Modal';
@@ -26,6 +27,7 @@ function matches(site: Site, q: string): boolean {
 }
 
 function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => void }) {
+  const { t } = useTranslation();
   const { runAction } = useAction();
   const { refresh } = useStore();
   const url = `https://${site.hostname}`;
@@ -46,13 +48,13 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
       </Link>
       {disabled && (
         <span className="absolute right-3 top-3 rounded-full border border-border px-2 py-0.5 text-[10px] text-text-muted">
-          Disabled
+          {t('sites.disabled')}
         </span>
       )}
       <div className="flex items-center gap-1.5">
         <IconButton
           tone="primary"
-          title={site.favorite ? 'Unfavorite' : 'Favorite'}
+          title={site.favorite ? t('sites.unfavorite') : t('sites.favorite')}
           aria-pressed={site.favorite}
           className={site.favorite ? 'text-warning hover:text-warning' : ''}
           onClick={() =>
@@ -69,14 +71,14 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
           <Icon name={site.favorite ? 'starFilled' : 'star'} />
         </IconButton>
         <IconButton
-          title="Copy URL"
+          title={t('sites.copyUrl')}
           onClick={() =>
             runAction({
               key: `copy-${site.name}`,
               startToast: false,
-              successMessage: 'URL copied',
+              successMessage: t('sites.urlCopied'),
               run: async () => {
-                if (!(await copyText(url))) throw new Error('Copy failed');
+                if (!(await copyText(url))) throw new Error(t('sites.copyFailed'));
                 onCopied(site.name);
               },
             })
@@ -85,7 +87,7 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
           <Icon name="copy" />
         </IconButton>
         <IconButton
-          title="Open HTTPS"
+          title={t('sites.openHttps')}
           disabled={disabled}
           onClick={() =>
             runAction({
@@ -102,12 +104,7 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
           size="sm"
           className="ml-auto"
           onClick={() => {
-            if (
-              !window.confirm(
-                `Remove "${site.name}" from Stacklet? Your project files on disk are not deleted.`,
-              )
-            )
-              return;
+            if (!window.confirm(t('sites.removeConfirm', { name: site.name }))) return;
             void runAction({
               key: `remove-${site.name}`,
               label: 'Remove site',
@@ -118,7 +115,7 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
             });
           }}
         >
-          Remove
+          {t('common.remove')}
         </Button>
       </div>
       </SpotlightCard>
@@ -127,6 +124,7 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
 }
 
 export function Sites() {
+  const { t } = useTranslation();
   const { runAction } = useAction();
   const toast = useToast();
   const navigate = useNavigate();
@@ -157,7 +155,7 @@ export function Sites() {
         if (!path) return;
         setLinkSource(path);
         setLinkOpen(true);
-        toast.success('Folder selected');
+        toast.success(t('sites.folderSelected'));
       },
     });
 
@@ -171,7 +169,7 @@ export function Sites() {
     }
     setLaravelErr(null);
     setCreating(true);
-    setCreateMsg('Starting…');
+    setCreateMsg(t('sites.startingProgress'));
     const off = stacklet.site.onCreateProgress((p) => setCreateMsg(p.message));
     void runAction({
       key: 'site-laravel',
@@ -237,14 +235,14 @@ export function Sites() {
     <div className="flex flex-col gap-5">
       <div className="flex flex-wrap items-center gap-2">
         <Button variant="primary" onClick={() => setLaravelOpen(true)}>
-          New Laravel project
+          {t('sites.newLaravel')}
         </Button>
-        <Button onClick={pickLinkDir}>Add existing project</Button>
-        <Button onClick={() => setCloneOpen(true)}>Clone from Git</Button>
+        <Button onClick={pickLinkDir}>{t('sites.addExisting')}</Button>
+        <Button onClick={() => setCloneOpen(true)}>{t('sites.cloneGit')}</Button>
         <Input
           type="search"
-          placeholder="Search sites…"
-          aria-label="Search sites"
+          placeholder={t('sites.searchPlaceholder')}
+          aria-label={t('sites.searchAria')}
           className="ml-auto w-56"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -252,11 +250,9 @@ export function Sites() {
       </div>
 
       {sites.length === 0 ? (
-        <Empty>
-          No projects yet. Create a Laravel app, clone from Git, or add an existing project.
-        </Empty>
+        <Empty>{t('sites.emptyNone')}</Empty>
       ) : visible.length === 0 ? (
-        <Empty>No sites match “{query}”.</Empty>
+        <Empty>{t('sites.noMatch', { query })}</Empty>
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
           {visible.map((site) => (
@@ -270,75 +266,71 @@ export function Sites() {
         onClose={() => {
           if (!creating) setLaravelOpen(false);
         }}
-        title="New Laravel project"
+        title={t('sites.newLaravel')}
       >
         {creating ? (
           <div className="flex flex-col gap-3">
             <div className="flex items-center gap-2 text-sm text-foreground">
               <Spinner />
-              Creating project…
+              {t('sites.creatingProject')}
             </div>
             <pre className="max-h-44 overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-xs text-text-secondary">
               {createMsg}
             </pre>
-            <p className="text-xs text-text-muted">
-              Running Composer — this can take a minute on the first run.
-            </p>
+            <p className="text-xs text-text-muted">{t('sites.composerNote')}</p>
           </div>
         ) : (
           <form onSubmit={submitLaravel} className="flex flex-col gap-4">
-          <Field label="Folder name">
+          <Field label={t('sites.folderName')}>
             <Input name="name" required placeholder="my-app" autoComplete="off" />
           </Field>
-          <p className="text-xs text-text-muted">
-            Creates under %LOCALAPPDATA%\stacklet\projects via Composer.
-          </p>
+          <p className="text-xs text-text-muted">{t('sites.laravelCreatesNote')}</p>
           {laravelErr && <p className="text-xs text-danger">{laravelErr}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" onClick={() => setLaravelOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" variant="primary">
-              Create
+              {t('common.create')}
             </Button>
           </div>
         </form>
         )}
       </Modal>
 
-      <Modal open={linkOpen} onClose={() => setLinkOpen(false)} title="Link existing project">
+      <Modal open={linkOpen} onClose={() => setLinkOpen(false)} title={t('sites.linkTitle')}>
         <form onSubmit={submitLink} className="flex flex-col gap-4">
-          <Field label="Site name (optional)">
-            <Input name="name" placeholder="defaults to folder name" autoComplete="off" />
+          <Field label={t('sites.siteNameOptional')}>
+            <Input name="name" placeholder={t('sites.defaultsFolderName')} autoComplete="off" />
           </Field>
           <p className="font-mono text-xs text-text-muted">{linkSource}</p>
           <div className="flex justify-end gap-2">
             <Button type="button" onClick={() => setLinkOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" variant="primary">
-              Link
+              {t('sites.link')}
             </Button>
           </div>
         </form>
       </Modal>
 
-      <Modal open={cloneOpen} onClose={() => setCloneOpen(false)} title="Clone from Git">
+      <Modal open={cloneOpen} onClose={() => setCloneOpen(false)} title={t('sites.cloneTitle')}>
         <form onSubmit={submitClone} className="flex flex-col gap-4">
-          <Field label="Repository URL">
+          <Field label={t('sites.repoUrl')}>
             <Input name="url" required placeholder="https://github.com/user/repo.git" autoComplete="off" />
           </Field>
-          <Field label="Folder name (optional)">
-            <Input name="name" placeholder="defaults to repo name" autoComplete="off" />
+          <Field label={t('sites.folderNameOptional')}>
+            <Input name="name" placeholder={t('sites.defaultsRepoName')} autoComplete="off" />
           </Field>
-          <p className="text-xs text-text-muted">Runs git clone into %LOCALAPPDATA%\stacklet\projects.</p>
+          <p className="text-xs text-text-muted">{t('sites.cloneNote')}</p>
           {cloneErr && <p className="text-xs text-danger">{cloneErr}</p>}
           <div className="flex justify-end gap-2">
             <Button type="button" onClick={() => setCloneOpen(false)}>
-              Cancel
+              {t('common.cancel')}
             </Button>
             <Button type="submit" variant="primary">
-              Clone
+              {t('sites.clone')}
             </Button>
           </div>
         </form>

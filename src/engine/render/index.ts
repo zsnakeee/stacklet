@@ -2,8 +2,9 @@
 import path from 'path';
 import type { DevConfig, Site } from '../../config/types';
 import { ensureDir, getGeneratedDir, getLogsDir } from '../../shared/paths';
-import { renderNginxVhosts } from './nginx';
+import { dashboardDocRoot, renderNginxVhosts } from './nginx';
 import { renderApacheVhosts } from './apache';
+import { renderDashboardHtml } from './dashboard';
 import { apacheGeneratedDir, apacheSitesConfPath } from '../../bundled/apache-configure';
 import {
   getActivePhpVersion,
@@ -29,6 +30,13 @@ export function renderAll(config: DevConfig, sites: Site[]): void {
   if (config.services.phpmyadmin.enabled && config.services.phpmyadmin.path) {
     ensureDir(path.join(getLogsDir(), 'sites', 'phpmyadmin'));
   }
+  // Logs dir for the catch-all default server (http://127.0.0.1/).
+  ensureDir(path.join(getLogsDir(), 'sites', 'default'));
+
+  // Stacklet dashboard served at http://127.0.0.1/ when no default site is set.
+  const dashDir = dashboardDocRoot();
+  ensureDir(dashDir);
+  fs.writeFileSync(path.join(dashDir, 'index.html'), renderDashboardHtml(config, sites), 'utf8');
 
   const nginxDir = path.join(getGeneratedDir(), 'nginx');
   ensureDir(nginxDir);

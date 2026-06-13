@@ -110,7 +110,10 @@ describe('renderNginxVhosts', () => {
     ];
     const conf = renderNginxVhosts(config, sites);
     expect(conf).not.toContain('off.test');
-    expect(conf).toContain('No registered sites');
+    // The catch-all default server (http://127.0.0.1/) is always present, even
+    // when no named sites are enabled.
+    expect(conf).toContain('default_server');
+    expect(conf).toContain('server_name 127.0.0.1 localhost _;');
   });
 
   it('adds Reverb WebSocket proxy blocks when enabled', () => {

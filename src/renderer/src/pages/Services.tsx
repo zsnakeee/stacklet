@@ -1,11 +1,14 @@
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Badge, Button } from '@/components/ui/primitives';
 import SpotlightCard from '@/components/SpotlightCard';
 import { useAction } from '@/lib/action';
 import { devmgr } from '@/lib/devmgr';
+import { tEngine } from '@/lib/engine-i18n';
 import { useStore } from '@/lib/store';
 
 export function Services() {
+  const { t } = useTranslation();
   const { runAction } = useAction();
   const { status, refresh } = useStore();
   const bundled = status?.bundledServices ?? [];
@@ -26,7 +29,7 @@ export function Services() {
             })
           }
         >
-          Refresh versions
+          {t('services.refreshVersions')}
         </Button>
       </div>
 
@@ -38,9 +41,9 @@ export function Services() {
               className="flex h-full flex-col gap-2 rounded-xl border border-border bg-surface/40 p-5 transition-colors hover:border-primary/40"
             >
               <h3 className="text-base font-semibold text-foreground">{svc.name}</h3>
-              <p className="flex-1 text-sm text-text-secondary">{svc.description}</p>
+              <p className="flex-1 text-sm text-text-secondary">{tEngine(svc.description)}</p>
               <Badge variant={svc.installed ? 'installed' : 'missing'}>
-                {svc.installed ? `v${svc.installedVersion ?? ''}` : 'Not installed'}
+                {svc.installed ? `v${svc.installedVersion ?? ''}` : t('common.notInstalled')}
               </Badge>
             </SpotlightCard>
           </Link>

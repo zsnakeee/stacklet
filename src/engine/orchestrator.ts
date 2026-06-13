@@ -72,6 +72,7 @@ import {
   type PhpExtensionInfo,
 } from './php-extensions';
 import { installPeclExtension, listPeclInstallable } from './pecl-installer';
+import { getIoncubeStatus, installIoncube, setIoncubeEnabled } from './ioncube';
 import { detectPhpBuild } from './php-build';
 import {
   getPhpIniForVersion,
@@ -148,27 +149,47 @@ import {
   installComposer as installComposerTool,
   type ComposerStatus,
 } from './composer';
+import {
+  ensureNgrokInstalled,
+  getNgrokConfigPath,
+  getNgrokStatus as readNgrokStatus,
+  installNgrok as installNgrokTool,
+  setNgrokAuthToken as setNgrokAuthTokenTool,
+  validateNgrokPath,
+  type NgrokStatus,
+} from './ngrok';
+import {
+  getCmderInitBat,
+  getCmderStatus as readCmderStatus,
+  installCmder as installCmderTool,
+  type CmderStatus,
+} from './cmder';
 import { collectTlsSanNames, ensureDevCerts, ensureFullChainCert } from './tls';
 import {
   ensureDataLayout,
   getConfigPath,
   getDataDir,
+  getGeneratedDir,
   getLogsDir,
   getProjectsDir,
   migrateLegacyDataDir,
   setDataDirOverride,
   setProjectsDirOverride,
 } from '../shared/paths';
+import { apacheSitesConfPath } from '../bundled/apache-configure';
+import { ensureLaravelTrustedProxies } from './laravel-share';
 
 export type AppSettingsPatch = {
   general?: {
     path_in_env?: boolean;
     path_env_selected?: string[];
     start_minimized?: boolean;
-    start_maximized?: boolean;
+    close_to_tray?: boolean;
     autostart?: boolean;
     launch_on_login?: boolean;
     xdebug?: boolean;
+    enhanced_terminal?: boolean;
+    default_site?: string;
   };
   services?: Partial<{
     nginx: { enabled?: boolean };
@@ -185,7 +206,15 @@ export type AppSettingsPatch = {
   }>;
 };
 
-const SERVICE_START_ORDER = ['nginx', 'php-fpm', 'mysql', 'postgres', 'redis'] as const;
+const SERVICE_START_ORDER = [
+  'nginx',
+  'php-fpm',
+  'mysql',
+  'postgres',
+  'redis',
+  'mongodb',
+  'mailpit',
+] as const;
 
 export type ApplyOptions = {
   /** Run PHP ini maintenance in the background (UI re-apply). */
@@ -212,9 +241,18 @@ function configServiceKeyToRuntime(
 }
 
 /** Order an arbitrary service list for sequential start (exported for tests). */
+/**
+ * Order services for sequential start. The web server (nginx OR apache) goes
+ * first, then the canonical order. Names not in the order list — most notably
+ * `apache` (the web-server slot resolves to it when Apache is active) — must NOT
+ * be dropped, or "Start all" silently skips the web server on Apache.
+ */
 export function orderServicesForSequentialStart(services: string[]): string[] {
-  const requested = new Set(services);
-  return SERVICE_START_ORDER.filter((name) => requested.has(name));
+  const requested = [...new Set(services)];
+  const order = ['nginx', 'apache', ...SERVICE_START_ORDER.filter((n) => n !== 'nginx')];
+  const known = order.filter((name) => requested.includes(name));
+  const rest = requested.filter((name) => !order.includes(name));
+  return [...known, ...rest];
 }
 
 const SSL_TRUST_CACHE_MS = 60_000;
@@ -303,15 +341,24 @@ export class Orchestrator {
     await this.stopAllOnQuit();
     await this.stopIsolatedPhp();
 
-    try {
-      fs.mkdirSync(parent, { recursive: true });
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException;
-      const why =
-        e.code === 'EPERM' || e.code === 'EACCES'
-          ? 'permission denied — pick a folder you can write to, or run Stacklet as administrator.'
-          : e.message;
-      throw new Error(`Can't create ${parent}: ${why}`);
+    // Only create the parent when it's actually missing. For a top-level target
+    // like F:\Stacklet the parent IS the drive root (F:\), and
+    // fs.mkdirSync('F:\\', { recursive: true }) throws EPERM on Windows — mkdir
+    // on an existing drive root yields EPERM, which recursive mode does NOT
+    // swallow (it only ignores EEXIST). That surfaced as a bogus
+    // "permission denied" even on a perfectly writable drive. The root already
+    // exists (verified above), so skip the call entirely in that case.
+    if (!fs.existsSync(parent)) {
+      try {
+        fs.mkdirSync(parent, { recursive: true });
+      } catch (err) {
+        const e = err as NodeJS.ErrnoException;
+        const why =
+          e.code === 'EPERM' || e.code === 'EACCES'
+            ? 'permission denied — pick a folder you can write to, or run Stacklet as administrator.'
+            : e.message;
+        throw new Error(`Can't create ${parent}: ${why}`);
+      }
     }
     try {
       fs.renameSync(current, target);
@@ -324,6 +371,44 @@ export class Orchestrator {
     return {
       ok: true,
       message: 'Data directory moved. Restart Stacklet to use the new location.',
+      path: target,
+    };
+  }
+
+  /**
+   * Point Stacklet at an EXISTING data folder from a previous install without
+   * moving anything. Unlike relocateDataDir (which requires an empty target and
+   * copies the current data in), this just sets the override pointer to a folder
+   * that already holds Stacklet data — e.g. after a reinstall, or to share one
+   * data folder across machines/drives. Validates the folder looks like Stacklet
+   * data so a wrong pick doesn't silently strand the user on an empty dir.
+   */
+  async useExistingDataDir(dir: string): Promise<{ ok: boolean; message: string; path: string }> {
+    const target = path.resolve(dir);
+    if (!fs.existsSync(target) || !fs.statSync(target).isDirectory()) {
+      throw new Error('That folder does not exist. Pick the data folder from your previous install.');
+    }
+    if (path.resolve(getDataDir()) === target) {
+      return { ok: true, message: 'Stacklet is already using that data directory.', path: target };
+    }
+    // Recognise a Stacklet data folder by any of its signature children. A folder
+    // missing all of these is almost certainly the wrong pick (e.g. the install
+    // dir, or an empty/unrelated folder), so refuse rather than strand the user.
+    const markers = ['config.toml', 'services', 'certs', 'sites.json', 'generated'];
+    const looksLikeData = markers.some((m) => fs.existsSync(path.join(target, m)));
+    if (!looksLikeData) {
+      throw new Error(
+        "That folder doesn't look like a Stacklet data directory (no config.toml, services, or certs). " +
+          'Pick the folder a previous install used, or use "Move data directory" to start fresh there.',
+      );
+    }
+
+    await this.stopAllOnQuit();
+    await this.stopIsolatedPhp();
+    setDataDirOverride(target);
+    return {
+      ok: true,
+      message: 'Now using the existing data directory. Restart Stacklet to load it.',
       path: target,
     };
   }
@@ -410,6 +495,40 @@ export class Orchestrator {
     return status;
   }
 
+  getNgrokStatus(): NgrokStatus {
+    return readNgrokStatus(this.config.general.ngrok_path);
+  }
+
+  async installNgrok(onProgress?: (message: string) => void): Promise<NgrokStatus> {
+    return installNgrokTool(onProgress);
+  }
+
+  setNgrokAuthToken(token: string): NgrokStatus {
+    return setNgrokAuthTokenTool(token, this.config.general.ngrok_path);
+  }
+
+  /** Point Stacklet at a user-provided ngrok.exe (Settings → Sharing). */
+  setNgrokPath(exePath: string): NgrokStatus {
+    const valid = validateNgrokPath(exePath);
+    this.config.general.ngrok_path = valid;
+    saveConfig(this.config);
+    return readNgrokStatus(valid);
+  }
+
+  getCmderStatus(): CmderStatus {
+    return readCmderStatus();
+  }
+
+  async installCmder(onProgress?: (message: string) => void): Promise<CmderStatus> {
+    return installCmderTool(onProgress);
+  }
+
+  /** Cmder/Clink init for interactive terminals, when enabled + installed. */
+  private cmderInitForTerminal(): string | undefined {
+    if (this.config.general.enhanced_terminal === false) return undefined;
+    return readCmderStatus().installed ? getCmderInitBat() : undefined;
+  }
+
   async saveAppSettings(patch: AppSettingsPatch): Promise<DevConfig> {
     if (patch.general) {
       if (patch.general.path_in_env !== undefined) {
@@ -421,8 +540,8 @@ export class Orchestrator {
       if (patch.general.start_minimized !== undefined) {
         this.config.general.start_minimized = patch.general.start_minimized;
       }
-      if (patch.general.start_maximized !== undefined) {
-        this.config.general.start_maximized = patch.general.start_maximized;
+      if (patch.general.close_to_tray !== undefined) {
+        this.config.general.close_to_tray = patch.general.close_to_tray;
       }
       if (patch.general.autostart !== undefined) {
         this.config.general.autostart = patch.general.autostart;
@@ -432,6 +551,12 @@ export class Orchestrator {
       }
       if (patch.general.xdebug !== undefined) {
         this.config.general.xdebug = patch.general.xdebug;
+      }
+      if (patch.general.enhanced_terminal !== undefined) {
+        this.config.general.enhanced_terminal = patch.general.enhanced_terminal;
+      }
+      if (patch.general.default_site !== undefined) {
+        this.config.general.default_site = patch.general.default_site;
       }
     }
     const stopRuntime: string[] = [];
@@ -519,7 +644,12 @@ export class Orchestrator {
     const redis = this.config.services.redis;
     if (redis.binary && fs.existsSync(redis.binary)) {
       const installRoot = path.dirname(path.resolve(redis.binary));
-      const confPath = ensureRedisConfig(installRoot, redis.port);
+      const confPath = ensureRedisConfig(installRoot, redis.port, {
+        password: redis.password,
+        maxmemory: redis.maxmemory,
+        maxmemoryPolicy: redis.maxmemory_policy,
+        appendonly: redis.appendonly,
+      });
       if (redis.config !== confPath) {
         this.config.services.redis.config = confPath;
         saveConfig(this.config);
@@ -1013,7 +1143,8 @@ export class Orchestrator {
     this.markPhpAutoRestart(false);
     await this.reverbManager.stopAll();
     await this.stopIsolatedPhp();
-    const order = [...SERVICE_START_ORDER].reverse();
+    // Include apache (the web-server slot) so it's stopped on quit too.
+    const order = ['apache', ...SERVICE_START_ORDER].reverse();
     for (const name of order) {
       try {
         const svc = this.getService(name);
@@ -1161,7 +1292,12 @@ export class Orchestrator {
     const resolved = this.resolvePhpVersion(version);
     const info = getPhpIniForVersion(resolved);
     if (!info) throw new Error(`php.ini not found for PHP ${resolved}`);
-    setPhpExtensionEnabled(info.phpRoot, name, enabled);
+    // ionCube is a zend_extension with a non-standard DLL name; toggle it directly.
+    if (name === 'ioncube') {
+      setIoncubeEnabled(info.phpRoot, enabled);
+    } else {
+      setPhpExtensionEnabled(info.phpRoot, name, enabled);
+    }
     await this.apply();
   }
 
@@ -1177,10 +1313,20 @@ export class Orchestrator {
     const resolved = this.resolvePhpVersion(version);
     const info = getPhpIniForVersion(resolved);
     if (!info) return null;
+    const ic = getIoncubeStatus(info.phpRoot);
     return {
       version: resolved,
       build: detectPhpBuild(info.phpRoot),
-      packages: listPeclInstallable(info.phpRoot),
+      packages: [
+        ...listPeclInstallable(info.phpRoot),
+        {
+          peclName: 'ioncube',
+          label: 'ionCube Loader — run ionCube-encoded PHP',
+          iniName: 'ioncube',
+          dllPresent: ic.dllPresent,
+          enabled: ic.enabled,
+        },
+      ],
     };
   }
 
@@ -1188,7 +1334,10 @@ export class Orchestrator {
     const resolved = this.resolvePhpVersion(version);
     const info = getPhpIniForVersion(resolved);
     if (!info) throw new Error(`php.ini not found for PHP ${resolved}`);
-    const name = await installPeclExtension(info.phpRoot, peclName);
+    const name =
+      peclName === 'ioncube'
+        ? await installIoncube(info.phpRoot)
+        : await installPeclExtension(info.phpRoot, peclName);
     await this.apply();
     await this.restartPhp();
     return name;
@@ -1467,6 +1616,59 @@ export class Orchestrator {
     await this.startService('nginx');
   }
 
+  /** Redis config Stacklet manages (no ACL users on the bundled Redis 5 build). */
+  getRedisSettings(): {
+    port: number;
+    password: string;
+    maxmemory: string;
+    maxmemoryPolicy: string;
+    appendonly: boolean;
+    configPath: string;
+    aclSupported: boolean;
+  } {
+    const r = this.config.services.redis;
+    return {
+      port: r.port,
+      password: r.password ?? '',
+      maxmemory: r.maxmemory ?? '',
+      maxmemoryPolicy: r.maxmemory_policy ?? '',
+      appendonly: r.appendonly === true,
+      configPath: r.config || '',
+      // ACL users need Redis ≥ 6; the bundled Windows build (tporadowski) is 5.x.
+      aclSupported: false,
+    };
+  }
+
+  async saveRedisSettings(patch: {
+    port?: number;
+    password?: string;
+    maxmemory?: string;
+    maxmemoryPolicy?: string;
+    appendonly?: boolean;
+  }): Promise<void> {
+    const r = this.config.services.redis;
+    if (patch.port !== undefined && Number.isFinite(patch.port)) r.port = patch.port;
+    if (patch.password !== undefined) r.password = patch.password;
+    if (patch.maxmemory !== undefined) r.maxmemory = patch.maxmemory;
+    if (patch.maxmemoryPolicy !== undefined) r.maxmemory_policy = patch.maxmemoryPolicy;
+    if (patch.appendonly !== undefined) r.appendonly = patch.appendonly;
+    saveConfig(this.config);
+    this.services = new ServiceManager(this.config);
+    await this.apply();
+    await this.restartRedis();
+  }
+
+  async restartRedis(): Promise<void> {
+    await this.stopService('redis');
+    await this.startService('redis');
+  }
+
+  openRedisConf(): void {
+    const conf = this.config.services.redis.config;
+    if (!conf) throw new Error('redis.conf not generated yet — install Redis and click Apply.');
+    openNginxConfInEditor(conf);
+  }
+
   private markPhpAutoRestart(enabled: boolean): void {
     this.phpAutoRestart = enabled;
     if (enabled) {
@@ -1585,6 +1787,32 @@ export class Orchestrator {
     return this.getSites();
   }
 
+  /** Set a site's URL-rewrite template and/or raw extra nginx directives. */
+  async setSiteRewrite(
+    name: string,
+    patch: { rewrite?: Site['rewrite']; nginx_extra?: string },
+  ): Promise<Site[]> {
+    const update: Partial<Site> = {};
+    if (patch.rewrite !== undefined) update.rewrite = patch.rewrite;
+    if (patch.nginx_extra !== undefined) update.nginx_extra = patch.nginx_extra;
+    updateRegisteredSite(name, update);
+    this.refreshSites();
+    await this.apply();
+    return this.getSites();
+  }
+
+  /** Open the generated web-server config (the file holding this site's vhost). */
+  openSiteWebConfig(name: string): { path: string } {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    const configPath =
+      (this.config.general.web_server ?? 'nginx') === 'apache'
+        ? apacheSitesConfPath()
+        : path.join(getGeneratedDir(), 'nginx', 'stacklet-sites.conf');
+    openNginxConfInEditor(configPath);
+    return { path: configPath };
+  }
+
   /** Isolate a site to a specific installed PHP version (null = default). */
   async setSitePhpVersion(name: string, version: string | null): Promise<Site[]> {
     if (version && !getPhpInstallPath(version)) {
@@ -1699,6 +1927,7 @@ export class Orchestrator {
       pathDirs: await this.sitePathDirs(site.root),
       command: 'php artisan tinker',
       title: `Tinker — ${site.name}`,
+      cmderInit: this.cmderInitForTerminal(),
     });
   }
 
@@ -1737,18 +1966,31 @@ export class Orchestrator {
   }
 
   /**
-   * Share a site publicly via ngrok (host-header rewrite to the .test vhost).
-   * Opens a terminal running ngrok — requires ngrok installed + an auth token
-   * (`ngrok config add-authtoken ...`).
+   * Share a site publicly via ngrok. Forwards to the site's local HTTPS vhost
+   * (so the public tunnel is https → https and the app sees an HTTPS request,
+   * avoiding mixed-content from absolute http asset URLs). Auto-installs ngrok
+   * on first use, then opens a terminal running it with Stacklet's own config
+   * (holding the auth token added in Settings → Sharing).
    */
   async openSiteShare(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
+    // Auto-configure Laravel to trust the proxy so shared URLs use the public
+    // https host (avoids mixed-content/CORS on absolute asset URLs).
+    if (site.framework === 'laravel') {
+      const note = ensureLaravelTrustedProxies(site.root);
+      if (note) console.log(`${logPrefix()} share: ${note}`);
+    }
+    const exe = await ensureNgrokInstalled(undefined, this.config.general.ngrok_path);
+    const cfg = getNgrokConfigPath();
+    const sslPort = this.config.services.nginx.ssl_port || 443;
+    const upstream =
+      sslPort === 443 ? `https://${site.hostname}` : `https://${site.hostname}:${sslPort}`;
     await openTerminalCommand({
       key: `share-${site.name}`,
       cwd: site.root,
       pathDirs: [],
-      command: `ngrok http --host-header=rewrite ${site.hostname}`,
+      command: `"${exe}" http --host-header=rewrite --config "${cfg}" ${upstream}`,
       title: `Share — ${site.hostname}`,
     });
   }
@@ -1763,6 +2005,7 @@ export class Orchestrator {
       pathDirs: await this.sitePathDirs(site.root),
       command: `echo Stacklet terminal — ${site.name}`,
       title: `Terminal — ${site.name}`,
+      cmderInit: this.cmderInitForTerminal(),
     });
   }
 

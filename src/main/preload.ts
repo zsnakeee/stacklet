@@ -1,5 +1,10 @@
 ﻿import { contextBridge, ipcRenderer } from 'electron';
-import type { BootstrapPhase, InstallProgressPayload, StackletAPI } from '../shared/ipc';
+import type {
+  BootstrapPhase,
+  InstallProgressPayload,
+  StackletAPI,
+  UpdateStatus,
+} from '../shared/ipc';
 
 // Must match BRAND.windowApi / BRAND.legacySlug in src/shared/brand.ts.
 // Do not import brand here — Electron's sandboxed preload cannot require app modules.
@@ -27,6 +32,7 @@ const stackletAPI: StackletAPI = {
   sitesRemove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
   dialog: {
     pickDirectory: () => ipcRenderer.invoke('stacklet:dialog:directory'),
+    pickFile: (opts) => ipcRenderer.invoke('stacklet:dialog:file', opts),
   },
   service: {
     start: (name) => ipcRenderer.invoke('stacklet:service:start', name),
@@ -70,6 +76,12 @@ const stackletAPI: StackletAPI = {
     openConf: (version) => ipcRenderer.invoke('stacklet:nginx:openConf', version),
     restart: () => ipcRenderer.invoke('stacklet:nginx:restart'),
   },
+  redis: {
+    getSettings: () => ipcRenderer.invoke('stacklet:redis:settings'),
+    saveSettings: (patch) => ipcRenderer.invoke('stacklet:redis:saveSettings', patch),
+    openConf: () => ipcRenderer.invoke('stacklet:redis:openConf'),
+    restart: () => ipcRenderer.invoke('stacklet:redis:restart'),
+  },
   sitesActions: {
     createLaravel: (name) => ipcRenderer.invoke('stacklet:sites:createLaravel', name),
     linkExisting: (sourcePath, projectName) =>
@@ -84,6 +96,9 @@ const stackletAPI: StackletAPI = {
       ipcRenderer.invoke('stacklet:sites:setDomain', name, domain, aliases),
     setDocRoot: (name, docRoot) =>
       ipcRenderer.invoke('stacklet:sites:setDocRoot', name, docRoot),
+    setRewrite: (name, patch) =>
+      ipcRenderer.invoke('stacklet:sites:setRewrite', name, patch),
+    openWebConfig: (name) => ipcRenderer.invoke('stacklet:sites:openWebConfig', name),
     setPhpVersion: (name, version) =>
       ipcRenderer.invoke('stacklet:sites:setPhpVersion', name, version),
     setReverb: (name, patch) => ipcRenderer.invoke('stacklet:sites:setReverb', name, patch),
@@ -153,9 +168,34 @@ const stackletAPI: StackletAPI = {
   shell: {
     openExternal: (url) => ipcRenderer.invoke('stacklet:shell:openExternal', url),
   },
+  diagnostics: {
+    report: (error) => ipcRenderer.send('stacklet:diagnostics:report', error),
+    openLog: () => ipcRenderer.invoke('stacklet:diagnostics:openLog'),
+    logPath: () => ipcRenderer.invoke('stacklet:diagnostics:logPath'),
+  },
   composer: {
     status: () => ipcRenderer.invoke('stacklet:composer:status'),
     install: () => ipcRenderer.invoke('stacklet:composer:install'),
+  },
+  ngrok: {
+    status: () => ipcRenderer.invoke('stacklet:ngrok:status'),
+    install: () => ipcRenderer.invoke('stacklet:ngrok:install'),
+    setAuthToken: (token) => ipcRenderer.invoke('stacklet:ngrok:setAuthToken', token),
+    setPath: (exePath) => ipcRenderer.invoke('stacklet:ngrok:setPath', exePath),
+    onProgress: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
+      ipcRenderer.on('stacklet:ngrok:progress', handler);
+      return () => ipcRenderer.removeListener('stacklet:ngrok:progress', handler);
+    },
+  },
+  cmder: {
+    status: () => ipcRenderer.invoke('stacklet:cmder:status'),
+    install: () => ipcRenderer.invoke('stacklet:cmder:install'),
+    onProgress: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
+      ipcRenderer.on('stacklet:cmder:progress', handler);
+      return () => ipcRenderer.removeListener('stacklet:cmder:progress', handler);
+    },
   },
   ssl: {
     status: () => ipcRenderer.invoke('stacklet:ssl:status'),
@@ -172,7 +212,20 @@ const stackletAPI: StackletAPI = {
     openPath: (targetPath) => ipcRenderer.invoke('stacklet:settings:openPath', targetPath),
     relocateDataDir: (newDir) =>
       ipcRenderer.invoke('stacklet:settings:relocateDataDir', newDir),
+    useExistingDataDir: (dir) =>
+      ipcRenderer.invoke('stacklet:settings:useExistingDataDir', dir),
     setProjectsDir: (dir) => ipcRenderer.invoke('stacklet:settings:setProjectsDir', dir),
+  },
+  update: {
+    current: () => ipcRenderer.invoke('stacklet:update:current'),
+    check: () => ipcRenderer.invoke('stacklet:update:check'),
+    download: () => ipcRenderer.invoke('stacklet:update:download'),
+    install: () => ipcRenderer.invoke('stacklet:update:install'),
+    onStatus: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status);
+      ipcRenderer.on('stacklet:update:status', handler);
+      return () => ipcRenderer.removeListener('stacklet:update:status', handler);
+    },
   },
   node: {
     nvmStatus: () => ipcRenderer.invoke('stacklet:node:nvmStatus'),

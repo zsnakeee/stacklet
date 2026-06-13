@@ -86,6 +86,14 @@ export interface RedisServiceConfig {
   config: string;
   port: number;
   installed_version?: string;
+  /** requirepass — the password clients must AUTH with (empty = no auth). */
+  password?: string;
+  /** maxmemory cap, e.g. "256mb" (empty = unlimited). */
+  maxmemory?: string;
+  /** eviction policy when maxmemory is reached, e.g. "allkeys-lru". */
+  maxmemory_policy?: string;
+  /** Enable the append-only file for persistence. */
+  appendonly?: boolean;
 }
 
 /** phpMyAdmin config.inc.php + dev-mgr site hostname. */
@@ -150,14 +158,20 @@ export interface DevConfig {
     path_env_selected?: string[];
     /** Start the app hidden to the tray. */
     start_minimized?: boolean;
-    /** Start the window maximized. */
-    start_maximized?: boolean;
+    /** Closing the window keeps Stacklet running in the tray (default true); when false, closing exits the app. */
+    close_to_tray?: boolean;
     /** Auto-start enabled services when the app launches (default true). */
     autostart?: boolean;
     /** Launch Stacklet automatically at Windows login. */
     launch_on_login?: boolean;
     /** Route Xdebug-triggered requests to a dedicated Xdebug-enabled php-cgi. */
     xdebug?: boolean;
+    /** Use Cmder/Clink (rich tab completion) in Stacklet-opened terminals (default true). */
+    enhanced_terminal?: boolean;
+    /** Site name served at http://127.0.0.1/ (unmatched host). Empty = Stacklet dashboard. */
+    default_site?: string;
+    /** Path to a user-provided ngrok.exe (overrides bundled/PATH; avoids re-downloading). */
+    ngrok_path?: string;
   };
   services: {
     nginx: NginxServiceConfig;
@@ -195,4 +209,8 @@ export interface Site {
   reverb?: SiteReverbConfig;
   /** Isolated PHP version for this site (empty/undefined = use the default). */
   php_version?: string;
+  /** URL-rewrite template for the nginx `location /` block (default derived from framework). */
+  rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa';
+  /** Raw extra nginx directives injected into the server block (advanced). */
+  nginx_extra?: string;
 }

@@ -39,6 +39,21 @@ function resolveOverride(): string | null {
   } catch {
     // fall through
   }
+  // Install-time choice: datadir.txt written next to the executable by the NSIS
+  // installer's "Data directory" page. Used only on a packaged build (in dev,
+  // execPath is electron.exe in node_modules and has no such file).
+  try {
+    const installFile = path.join(path.dirname(process.execPath), 'datadir.txt');
+    if (fs.existsSync(installFile)) {
+      const stored = fs.readFileSync(installFile, 'utf8').trim();
+      if (stored) {
+        cachedOverride = path.resolve(stored);
+        return cachedOverride;
+      }
+    }
+  } catch {
+    // fall through
+  }
   cachedOverride = null;
   return null;
 }

@@ -1,4 +1,5 @@
 ﻿import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { initConfig, loadConfig } from '../config/store';
@@ -9,12 +10,50 @@ import {
   shutdownEngineOnQuit,
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
+import { checkForUpdatesOnLaunch, registerUpdaterIpc } from './updater';
 import { getDataDir, migrateLegacyDataDir } from '../shared/paths';
-import { BRAND, logPrefix } from '../shared/brand';
+import { BRAND, logPrefix, readEnv } from '../shared/brand';
+import { isElevated } from '../helper/elevate';
 import { initErrorLogging } from './logger';
 
 app.setName(BRAND.name);
 process.title = BRAND.name;
+
+// Require administrator — ALWAYS on Windows. Stacklet edits the Windows hosts
+// file, installs trusted CA certs, and manages system services, all of which
+// need elevation; running un-elevated leaves it half-broken. So if we're not
+// elevated, relaunch ourselves through UAC and exit. Escape hatch for debugging
+// only: STACKLET_NO_ADMIN=1. Runs BEFORE the single-instance lock so the
+// un-elevated process never holds the lock the elevated one needs.
+function relaunchElevated(): void {
+  try {
+    const exe = process.execPath;
+    const args = process.argv.slice(1).map((a) => `'${a.replace(/'/g, "''")}'`);
+    const argList = args.length ? ` -ArgumentList ${args.join(',')}` : '';
+    // In dev, `electron .` resolves the app relative to the working directory,
+    // so the elevated relaunch must start in the app dir (a real folder). Don't
+    // set it when packaged — getAppPath() points inside app.asar (not a dir).
+    const workdir = app.isPackaged ? '' : app.getAppPath().replace(/'/g, "''");
+    const wd = workdir ? ` -WorkingDirectory '${workdir}'` : '';
+    const command = `Start-Process -FilePath '${exe.replace(/'/g, "''")}'${argList}${wd} -Verb RunAs`;
+    // Run SYNCHRONOUSLY: a detached spawn gets torn down by the immediate
+    // app.exit() below before PowerShell can launch the elevated instance, which
+    // left the app "not running" at all. spawnSync blocks until PowerShell has
+    // started the elevated process (or the UAC prompt is dismissed).
+    spawnSync('powershell.exe', ['-NoProfile', '-Command', command], {
+      stdio: 'ignore',
+      windowsHide: true,
+    });
+  } catch {
+    // If relaunch fails the app simply exits un-elevated below — nothing to do.
+  }
+}
+
+const requireAdmin = process.platform === 'win32' && readEnv('NO_ADMIN') !== '1';
+if (requireAdmin && !isElevated()) {
+  relaunchElevated();
+  app.exit(0);
+}
 
 // Single-instance guard. Stacklet keeps running in the tray after its window is
 // closed (see the window 'close' handler below), so launching it again — every
@@ -84,18 +123,20 @@ function registerWindowIpc(getWindow: () => BrowserWindow | null): void {
 
 function readGeneralPrefs(): {
   startMinimized: boolean;
-  startMaximized: boolean;
+  closeToTray: boolean;
   launchOnLogin: boolean;
 } {
   try {
     const general = loadConfig().general;
     return {
       startMinimized: general.start_minimized === true,
-      startMaximized: general.start_maximized === true,
+      // Default true: closing keeps Stacklet in the tray (it manages background
+      // services). Only exit on close when the user explicitly opts out.
+      closeToTray: general.close_to_tray !== false,
       launchOnLogin: general.launch_on_login === true,
     };
   } catch {
-    return { startMinimized: false, startMaximized: false, launchOnLogin: false };
+    return { startMinimized: false, closeToTray: true, launchOnLogin: false };
   }
 }
 
@@ -106,15 +147,22 @@ function createWindow(prefs: ReturnType<typeof readGeneralPrefs>): BrowserWindow
     minWidth: 900,
     minHeight: 600,
     backgroundColor: '#090c0e',
-    show: !prefs.startMinimized,
+    // Stay hidden until the renderer's first paint is ready, then show — avoids
+    // the brief empty/white frame and makes launch feel instant.
+    show: false,
     frame: false,
     autoHideMenuBar: true,
     icon: app.isPackaged ? undefined : path.join(app.getAppPath(), 'build', 'icon.png'),
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
+      spellcheck: false,
       preload: path.join(__dirname, 'preload.js'),
     },
+  });
+
+  win.once('ready-to-show', () => {
+    if (!prefs.startMinimized) win.show();
   });
 
   win.loadFile(rendererIndexPath());
@@ -137,17 +185,20 @@ function createWindow(prefs: ReturnType<typeof readGeneralPrefs>): BrowserWindow
     win.webContents.send('stacklet:window:maximized', false);
   });
   win.on('close', (e) => {
-    if (!quitting) {
+    if (quitting) return;
+    // Re-read the pref so a change in Settings takes effect without a restart.
+    if (readGeneralPrefs().closeToTray) {
       e.preventDefault();
       win.hide();
+      return;
     }
+    // User chose to exit on close: let the window close and quit the whole app
+    // (graceful engine shutdown runs in the before-quit handler).
+    app.quit();
   });
   win.on('closed', () => {
     mainWindow = null;
   });
-  if (prefs.startMaximized && !prefs.startMinimized) {
-    win.maximize();
-  }
   return win;
 }
 
@@ -173,6 +224,7 @@ app.whenReady().then(() => {
   const prefs = readGeneralPrefs();
   registerEngineIpc(getWindow);
   registerWindowIpc(getWindow);
+  registerUpdaterIpc(getWindow);
   try {
     app.setLoginItemSettings({ openAtLogin: prefs.launchOnLogin });
   } catch {
@@ -183,6 +235,7 @@ app.whenReady().then(() => {
   // Paint the window first; engine init + autostart can block the main thread.
   mainWindow.webContents.once('did-finish-load', () => {
     void bootstrapEngineOnLaunch(getWindow);
+    checkForUpdatesOnLaunch(getWindow);
   });
 
   app.on('activate', () => {

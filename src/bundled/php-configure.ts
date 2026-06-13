@@ -8,7 +8,7 @@ import {
 } from '../engine/php-extensions';
 import { isValidCaBundle } from '../engine/php-ca-bundle';
 import { BRAND } from '../shared/brand';
-import { ensureDir, getDataDir } from '../shared/paths';
+import { ensureDir, getDataDir, getLogsDir } from '../shared/paths';
 
 function exists(p: string): boolean {
   return fs.existsSync(p);
@@ -140,6 +140,15 @@ export function ensurePhpIni(phpRoot: string, options?: EnsurePhpIniOptions): st
   content = setIniDirective(content, 'display_errors', 'Off');
   content = setIniDirective(content, 'log_errors', 'On');
   content = setIniDirective(content, 'error_reporting', 'E_ALL & ~E_DEPRECATED');
+
+  // Send PHP errors to a file under the data logs dir so they show up in the
+  // Logs tab (PHP <ver>). Path keyed by version (the install folder name) to
+  // match the PHP log source glob (<data>/logs/php/<version>).
+  const phpVersion = path.basename(root);
+  const phpLogDir = path.join(getLogsDir(), 'php', phpVersion);
+  ensureDir(phpLogDir);
+  const errorLogPath = path.join(phpLogDir, 'php_error.log').replace(/\\/g, '/');
+  content = setIniDirective(content, 'error_log', errorLogPath);
 
   const caBundlePath = options?.caBundlePath;
   if (caBundlePath && isValidCaBundle(caBundlePath)) {

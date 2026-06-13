@@ -1,6 +1,8 @@
 import fs from 'fs';
 import path from 'path';
+import { ipcMain, shell } from 'electron';
 import { getLogsDir } from '../shared/paths';
+import type { RendererErrorReport } from '../shared/ipc';
 
 /**
  * Lightweight append-only file logger for the main process. Captures uncaught
@@ -76,5 +78,39 @@ export function initErrorLogging(): void {
     appendLog('unhandledRejection', reason);
   });
 
+  registerDiagnosticsIpc();
+
   appendLog('info', `Stacklet main started (pid ${process.pid})`);
+}
+
+/** IPC for renderer-side error capture: forward reports to app.log + reveal it. */
+function registerDiagnosticsIpc(): void {
+  // `send` (fire-and-forget) from the renderer's global error handlers.
+  ipcMain.on('stacklet:diagnostics:report', (_e, report: RendererErrorReport) => {
+    try {
+      const where = report?.url ? ` @ ${report.url}` : '';
+      const parts: unknown[] = [`[${report?.source ?? 'renderer'}]${where} ${report?.message ?? ''}`];
+      if (report?.stack) parts.push(`\n${report.stack}`);
+      if (report?.componentStack) parts.push(`\nComponent stack:${report.componentStack}`);
+      appendLog('renderer', ...parts);
+    } catch {
+      // never throw from the logger
+    }
+  });
+
+  ipcMain.handle('stacklet:diagnostics:logPath', () => getAppLogPath());
+
+  ipcMain.handle('stacklet:diagnostics:openLog', async () => {
+    const file = getAppLogPath();
+    if (!file) throw new Error('Log file is not available.');
+    // Make sure the file exists so the OS file manager has something to select.
+    if (!fs.existsSync(file)) {
+      try {
+        fs.writeFileSync(file, '', 'utf8');
+      } catch {
+        // fall through — showItemInFolder will still open the folder
+      }
+    }
+    shell.showItemInFolder(file);
+  });
 }

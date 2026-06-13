@@ -1,7 +1,12 @@
-import { lazy, Suspense, type ComponentProps } from 'react';
+import { lazy, Suspense, useState, type ComponentProps } from 'react';
 import { useDeferredMount } from '@/lib/use-deferred-mount';
 
 const LazyGlobe = lazy(() => import('@/components/globe'));
+
+// Once the globe has been mounted in this session, skip the first-paint defer on
+// every later Dashboard visit — the chunk is already loaded and the WebGL globe
+// is cached, so it should reappear immediately, not after another idle delay.
+let globeMountedOnce = false;
 
 type GlobeProps = ComponentProps<typeof LazyGlobe>;
 
@@ -22,7 +27,14 @@ function GlobePlaceholder({ width, height }: { width: number; height: number }) 
 export function DashboardGlobe(props: GlobeProps) {
   const lg =
     typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
-  const ready = useDeferredMount(lg, { minDelayMs: 5000, idleTimeoutMs: 12000 });
+  // Defer only the very first time; afterwards mount immediately.
+  const [alreadyMounted] = useState(globeMountedOnce);
+  const deferred = useDeferredMount(lg && !alreadyMounted, {
+    minDelayMs: 1200,
+    idleTimeoutMs: 4000,
+  });
+  const ready = lg && (alreadyMounted || deferred);
+  if (ready) globeMountedOnce = true;
 
   const width = typeof props.width === 'number' ? props.width : 300;
   const height = typeof props.height === 'number' ? props.height : 260;

@@ -8,8 +8,49 @@
       content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: http://127.0.0.1:* http://localhost:*; frame-src 'self' http://127.0.0.1:* http://localhost:*"
     />
     <title>Stacklet — Local Dev Stack</title>
+    <style>
+      /* Instant boot loader: visible the moment the window paints, before the JS
+         bundle parses. React replaces #root on first render, removing it. */
+      #boot-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 20px;
+        background: #090c0e;
+        color: #eef2f6;
+        font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      }
+      #boot-loader .boot-brand {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+      #boot-loader .boot-brand span {
+        color: #2dd4aa;
+      }
+      #boot-loader .boot-spinner {
+        width: 28px;
+        height: 28px;
+        border-radius: 9999px;
+        border: 2px solid rgba(45, 212, 170, 0.25);
+        border-top-color: #2dd4aa;
+        animation: boot-spin 0.7s linear infinite;
+      }
+      @keyframes boot-spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+    </style>
   </head>
   <body>
+    <div id="boot-loader">
+      <div class="boot-brand">Stack<span>let</span></div>
+      <div class="boot-spinner"></div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

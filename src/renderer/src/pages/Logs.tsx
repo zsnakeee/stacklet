@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Button, Empty } from '@/components/ui/primitives';
 import { useAction } from '@/lib/action';
 import { LOG_KIND_LABELS, LOG_PAGE_EXCLUDED_KINDS, LOG_PAGE_KIND_ORDER } from '@/lib/constants';
@@ -11,11 +12,12 @@ function isGlobal(src: LogSource): boolean {
 }
 
 export function Logs() {
+  const { t } = useTranslation();
   const { runAction } = useAction();
   const [sources, setSources] = useState<LogSource[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
-  const [activeLabel, setActiveLabel] = useState('Log viewer');
-  const [content, setContent] = useState('Select a log from the list.');
+  const [activeLabel, setActiveLabel] = useState(() => t('logs.viewerTitle'));
+  const [content, setContent] = useState(() => t('logs.selectPrompt'));
 
   const viewRef = useRef<HTMLPreElement>(null);
   const appendCleanup = useRef<(() => void) | null>(null);
@@ -47,10 +49,10 @@ export function Logs() {
       activeRef.current = id;
       setActiveId(id);
       setActiveLabel(label);
-      setContent('Loading…');
+      setContent(t('common.loading'));
       try {
         const lines = await devmgr.logs.tail(id, 200);
-        setContent(lines.join('\n') || '(empty)');
+        setContent(lines.join('\n') || t('logs.empty'));
         requestAnimationFrame(scrollToBottom);
         appendCleanup.current = devmgr.logs.onAppend(({ id: sourceId, chunk }) => {
           if (sourceId !== id) return;
@@ -95,11 +97,9 @@ export function Logs() {
   return (
     <div className="grid h-full grid-cols-1 gap-4 md:grid-cols-[16rem_1fr]">
       <aside className="flex flex-col gap-4 overflow-y-auto rounded-xl border border-border bg-surface/40 p-3">
-        <p className="text-xs text-text-muted">
-          Service logs only (nginx, PHP, MySQL, …). Per-site logs are on each site’s detail page.
-        </p>
+        <p className="text-xs text-text-muted">{t('logs.intro')}</p>
         {sources.length === 0 ? (
-          <Empty>No service log files yet. Start nginx, PHP, MySQL, etc.</Empty>
+          <Empty>{t('logs.noFiles')}</Empty>
         ) : (
           <ul className="flex flex-col gap-3">
             {kinds.map((kind) => (
@@ -152,7 +152,7 @@ export function Logs() {
               })
             }
           >
-            Open in window
+            {t('logs.openInWindow')}
           </Button>
         </header>
         <pre
