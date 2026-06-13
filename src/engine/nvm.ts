@@ -9,6 +9,7 @@
 import { execFile } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
+import os from 'os';
 import path from 'path';
 
 const execFileAsync = promisify(execFile);
@@ -98,6 +99,72 @@ export async function nvmListAvailable(): Promise<string[]> {
     }
   }
   return versions;
+}
+
+/**
+ * Auto-install nvm-windows itself (the tool, not a Node version). Tries winget
+ * first — it's bundled on Windows 10 1809+/11, handles the UAC prompt, and sets
+ * NVM_HOME / NVM_SYMLINK + PATH for us — then falls back to the official Inno
+ * Setup installer from GitHub. Either path needs elevation, so a UAC dialog will
+ * appear. The new PATH/env only reaches Stacklet after a restart, so the caller
+ * tells the user to reopen the app.
+ */
+export async function installNvmWindows(): Promise<string> {
+  if (process.platform !== 'win32') {
+    throw new Error('Automatic nvm install is only supported on Windows.');
+  }
+  // Already there? Don't kick off a redundant (elevated) install.
+  if ((await runNvm(['version'], 10_000)) !== null) {
+    return 'nvm-windows is already installed.';
+  }
+
+  // 1) winget (preferred).
+  try {
+    const { stdout, stderr } = await execFileAsync(
+      'winget',
+      [
+        'install',
+        '--id',
+        'CoreyButler.NVMforWindows',
+        '--exact',
+        '--silent',
+        '--accept-source-agreements',
+        '--accept-package-agreements',
+      ],
+      { windowsHide: true, timeout: 600_000, maxBuffer: 8 * 1024 * 1024 },
+    );
+    const out = `${stdout}${stderr}`.trim();
+    return out || 'nvm-windows installed via winget. Restart Stacklet to pick it up.';
+  } catch (err) {
+    const e = err as NodeJS.ErrnoException & { stdout?: Buffer | string; stderr?: Buffer | string };
+    if (e.code !== 'ENOENT') {
+      // winget exists but exited non-zero (e.g. user declined UAC, or it's
+      // already installed under a different source). Surface its own message.
+      const out = [String(e.stdout ?? ''), String(e.stderr ?? '')].join('\n').trim();
+      if (out) return out;
+    }
+    // 2) Fall back to the GitHub Inno Setup installer.
+    return installNvmFromGithub();
+  }
+}
+
+/** Download coreybutler's nvm-setup.exe and run it elevated + silently. */
+async function installNvmFromGithub(): Promise<string> {
+  const url = 'https://github.com/coreybutler/nvm-windows/releases/latest/download/nvm-setup.exe';
+  const dest = path.join(os.tmpdir(), 'stacklet-nvm-setup.exe');
+  // -Verb RunAs triggers the UAC elevation prompt; Inno Setup's /SILENT runs it
+  // without its wizard. -Wait blocks until the installer finishes.
+  const script = [
+    "$ErrorActionPreference='Stop';",
+    `Invoke-WebRequest -UseBasicParsing -Uri '${url}' -OutFile '${dest}';`,
+    `Start-Process -FilePath '${dest}' -ArgumentList '/SILENT','/NORESTART','/SP-' -Verb RunAs -Wait;`,
+  ].join(' ');
+  await execFileAsync(
+    'powershell',
+    ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-Command', script],
+    { windowsHide: true, timeout: 600_000, maxBuffer: 8 * 1024 * 1024 },
+  );
+  return 'nvm-windows installed from GitHub. Restart Stacklet to pick it up.';
 }
 
 /** Install a Node version via nvm. Returns the command output. */

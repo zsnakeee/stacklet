@@ -379,6 +379,13 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
 
   // ---- Node / nvm-windows ----
   ipcMain.handle('stacklet:node:nvmStatus', () => getEngine().nvmStatus());
+  ipcMain.handle('stacklet:node:nvmInstallSelf', async () => {
+    try {
+      return { ok: true, output: await getEngine().installNvm() };
+    } catch (err) {
+      return { ok: false, output: err instanceof Error ? err.message : String(err) };
+    }
+  });
   ipcMain.handle('stacklet:node:nvmAvailable', () => getEngine().nvmAvailable());
   ipcMain.handle('stacklet:node:nvmInstall', async (_e, version: string) => {
     try {

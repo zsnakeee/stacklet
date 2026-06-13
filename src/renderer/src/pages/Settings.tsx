@@ -632,7 +632,21 @@ function NodeNvmSection() {
       {nvm == null ? (
         <p className="mt-3 text-sm text-text-muted">{t('settings.node.loading')}</p>
       ) : !nvm.installed ? (
-        <p className="mt-3 text-sm text-warning">{t('settings.node.notInstalled')}</p>
+        <div className="mt-3">
+          <p className="text-sm text-warning">{t('settings.node.notInstalled')}</p>
+          <Button
+            className="mt-2"
+            size="sm"
+            variant="primary"
+            disabled={busy}
+            onClick={() =>
+              run(t('settings.node.installSelf'), () => devmgr.node.nvmInstallSelf())
+            }
+          >
+            {busy ? t('settings.node.installingSelf') : t('settings.node.installSelf')}
+          </Button>
+          <Hint className="mt-1">{t('settings.node.installSelfHint')}</Hint>
+        </div>
       ) : (
         <>
           <div className="mt-3">

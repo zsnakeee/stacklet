@@ -1,4 +1,5 @@
 ﻿import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import fs from 'fs';
 import path from 'path';
 import { initConfig, loadConfig } from '../config/store';
 import {
@@ -8,12 +9,44 @@ import {
   shutdownEngineOnQuit,
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
-import { migrateLegacyDataDir } from '../shared/paths';
+import { getDataDir, migrateLegacyDataDir } from '../shared/paths';
 import { BRAND, logPrefix } from '../shared/brand';
 import { initErrorLogging } from './logger';
 
 app.setName(BRAND.name);
 process.title = BRAND.name;
+
+// Single-instance guard. Stacklet keeps running in the tray after its window is
+// closed (see the window 'close' handler below), so launching it again — every
+// `npm start`, or clicking the icon twice — would otherwise spawn a SECOND
+// Electron process that fights the resident one over the shared GPU/HTTP disk
+// cache. That collision is exactly the log spam:
+//   "Unable to move the cache: Access is denied. (0x5)"
+//   "Unable to create cache" / "Gpu Cache Creation failed: -2"
+// Hand off to the already-running instance and exit immediately instead.
+const isPrimaryInstance = app.requestSingleInstanceLock();
+if (!isPrimaryInstance) {
+  // app.exit (not app.quit) skips the before-quit engine-shutdown path below,
+  // which must not run here — this process never bootstrapped the engine.
+  app.exit(0);
+}
+
+// Disk-cache resilience. Even as a single instance, an ungraceful kill
+// (Ctrl+C / "Terminate batch job") leaves Chromium's default cache dir locked,
+// so the next launch can't migrate it — that's the
+//   "Unable to move the cache: Access is denied" / "Gpu Cache Creation failed"
+// spam. Point the HTTP cache at a dedicated, app-owned folder (no in-place
+// migration "move" happens when the dir is given explicitly) and turn off the
+// GPU shader disk cache (the one failing with -2). These switches must be set
+// before `app` is ready, hence at module load.
+try {
+  const cacheDir = path.join(getDataDir(), 'cache');
+  fs.mkdirSync(cacheDir, { recursive: true });
+  app.commandLine.appendSwitch('disk-cache-dir', cacheDir);
+} catch {
+  // best-effort — fall back to the default cache location
+}
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 
 // Migrate the legacy %LOCALAPPDATA%\devmgr folder to \stacklet before anything
 // creates the new data dir.
@@ -122,7 +155,19 @@ function getWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+// A second launch was blocked by the single-instance lock above. Bring the
+// already-running window to the front instead of doing nothing (the user clicked
+// the icon expecting Stacklet to appear).
+app.on('second-instance', () => {
+  const win = getWindow();
+  if (!win) return;
+  if (!win.isVisible()) win.show();
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
+
 app.whenReady().then(() => {
+  if (!isPrimaryInstance) return;
   Menu.setApplicationMenu(null);
   initConfig();
   const prefs = readGeneralPrefs();

@@ -47,7 +47,11 @@ export const resources = {
           title: 'Node.js (nvm)',
           hint: 'Manage global Node versions with nvm-windows. Projects with a .nvmrc use their pinned version in the site terminal automatically.',
           notInstalled:
-            'nvm-windows was not found on PATH. Install it from github.com/coreybutler/nvm-windows, then reopen Stacklet.',
+            'nvm-windows was not found on PATH. Install it automatically below, then reopen Stacklet.',
+          installSelf: 'Install nvm-windows',
+          installingSelf: 'Installing…',
+          installSelfHint:
+            'Installs nvm-windows via winget (or the official installer). Windows will ask for administrator permission. Restart Stacklet when it finishes.',
           installed: 'Installed versions',
           current: 'in use',
           use: 'Use',
@@ -103,7 +107,11 @@ export const resources = {
           title: 'نود (nvm)',
           hint: 'إدارة إصدارات نود العامة عبر nvm-windows. المشاريع التي تحتوي على ملف ‎.nvmrc‎ تستخدم إصدارها المثبّت في طرفية الموقع تلقائياً.',
           notInstalled:
-            'لم يُعثر على nvm-windows في مسار النظام. ثبّته من github.com/coreybutler/nvm-windows ثم أعد فتح Stacklet.',
+            'لم يُعثر على nvm-windows في مسار النظام. ثبّته تلقائياً أدناه ثم أعد فتح Stacklet.',
+          installSelf: 'تثبيت nvm-windows',
+          installingSelf: 'جارٍ التثبيت…',
+          installSelfHint:
+            'يثبّت nvm-windows عبر winget (أو المثبّت الرسمي). سيطلب ويندوز إذن المسؤول. أعد تشغيل Stacklet عند الانتهاء.',
           installed: 'الإصدارات المثبّتة',
           current: 'قيد الاستخدام',
           use: 'استخدام',

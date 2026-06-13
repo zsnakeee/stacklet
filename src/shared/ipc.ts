@@ -143,6 +143,7 @@ export interface StackletAPI {
       current: string | null;
       installedVersions: string[];
     }>;
+    nvmInstallSelf: () => Promise<{ ok: boolean; output: string }>;
     nvmAvailable: () => Promise<string[]>;
     nvmInstall: (version: string) => Promise<{ ok: boolean; output: string }>;
     nvmUse: (version: string) => Promise<{ ok: boolean; output: string }>;
