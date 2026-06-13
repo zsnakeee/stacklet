@@ -1,8 +1,30 @@
+import { spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { downloadFile } from '../bundled/download';
 import { extractZipArchive } from '../bundled/extract-zip';
 import { getDataDir, getServicesCacheDir } from '../shared/paths';
+
+/** clink.bat launcher inside the bundled Cmder (picks the right arch). */
+export function getClinkBat(): string {
+  return path.join(getCmderDir(), 'vendor', 'clink', 'clink.bat');
+}
+
+/**
+ * Register clink's cmd AutoRun so it loads in EVERY cmd.exe session (Windows
+ * Terminal, Run → cmd, etc.), not only Stacklet's launcher. Writes to the
+ * per-user AutoRun registry; reversible with `clink autorun uninstall`.
+ * Note: clink only works in cmd.exe — PowerShell has its own PSReadLine.
+ */
+export function registerClinkAutorun(): boolean {
+  const clink = getClinkBat();
+  if (process.platform !== 'win32' || !fs.existsSync(clink)) return false;
+  const res = spawnSync(clink, ['autorun', 'install'], {
+    encoding: 'utf8',
+    windowsHide: true,
+  });
+  return res.status === 0;
+}
 
 /**
  * Cmder (mini) — bundles Clink, which gives the classic cmd.exe rich tab
@@ -51,6 +73,13 @@ export async function installCmder(
 
   if (!fs.existsSync(getCmderInitBat())) {
     throw new Error('Cmder init script not found after extraction.');
+  }
+  // Make clink load in every cmd.exe, not just Stacklet's terminal (best-effort).
+  onProgress?.('Enabling Clink in all cmd terminals…');
+  try {
+    registerClinkAutorun();
+  } catch {
+    // best-effort — Stacklet's own terminals still load clink via init.bat
   }
   try {
     fs.rmSync(zipPath, { force: true });

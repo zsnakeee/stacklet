@@ -182,10 +182,11 @@ export function registerUpdaterIpc(getWindow: () => BrowserWindow | null): void 
   ipcMain.handle('stacklet:update:install', () => {
     if (!app.isPackaged) return;
     pinDataDirBeforeInstall();
-    // Silent install into the SAME directory, then relaunch. isSilent=true runs
-    // the NSIS updater with no UI/prompts (it reuses the existing install path);
-    // isForceRunAfter=true reopens Stacklet when it finishes.
-    setImmediate(() => autoUpdater.quitAndInstall(true, true));
+    // Show the NSIS installer progress while updating in place, then relaunch.
+    // isSilent=false surfaces the install progress window the user asked to see;
+    // isForceRunAfter=true reopens Stacklet when it finishes. (The download
+    // progress is already shown live in Settings → Updates beforehand.)
+    setImmediate(() => autoUpdater.quitAndInstall(false, true));
   });
 }
 

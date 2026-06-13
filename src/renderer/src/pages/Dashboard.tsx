@@ -11,6 +11,7 @@ import { useDeferredMount } from '@/lib/use-deferred-mount';
 import { devmgr } from '@/lib/devmgr';
 import { openServiceLog } from '@/lib/logs-helpers';
 import { bundledById, runtimeStatus, useStore } from '@/lib/store';
+import { tEngine } from '@/lib/engine-i18n';
 import { useTheme } from '@/lib/theme';
 import { useToast } from '@/lib/toast';
 
@@ -232,7 +233,7 @@ export function Dashboard() {
       {status?.warnings && status.warnings.length > 0 && (
         <div className="rounded-xl border border-warning/40 bg-warning/5 p-4">
           <pre className="whitespace-pre-wrap text-sm text-warning">
-            {status.warnings.join('\n\n')}
+            {status.warnings.map(tEngine).join('\n\n')}
           </pre>
         </div>
       )}
@@ -282,7 +283,7 @@ export function Dashboard() {
                     {bundled?.name ?? row.bundledId}
                   </strong>
                   <small className="block truncate text-xs text-text-muted">
-                    {bundled?.description ?? ''}
+                    {tEngine(bundled?.description)}
                   </small>
                 </div>
                 <Badge variant={badge.variant} dot={badge.variant !== 'missing'}>
