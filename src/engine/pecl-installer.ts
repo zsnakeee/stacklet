@@ -32,12 +32,45 @@ export interface PeclPackageMeta {
   zend?: boolean;
 }
 
+/**
+ * Popular PECL extensions that publish official Windows DLL builds (the
+ * resolver downloads from downloads.php.net / windows.php.net). Not every
+ * package ships a build for every PHP version — installs that can't find a
+ * matching build fail with a clear message, which is expected.
+ */
 export const PECL_PACKAGES: PeclPackageMeta[] = [
-  { peclName: 'redis', label: 'Redis', iniName: 'redis' },
-  { peclName: 'xdebug', label: 'Xdebug', iniName: 'xdebug', zend: true },
-  { peclName: 'apcu', label: 'APCu', iniName: 'apcu' },
-  { peclName: 'memcached', label: 'Memcached', iniName: 'memcached' },
-  { peclName: 'imagick', label: 'Imagick', iniName: 'imagick' },
+  { peclName: 'redis', label: 'Redis — key/value cache & store', iniName: 'redis' },
+  { peclName: 'xdebug', label: 'Xdebug — step debugger & profiler', iniName: 'xdebug', zend: true },
+  { peclName: 'apcu', label: 'APCu — in-memory user cache', iniName: 'apcu' },
+  { peclName: 'memcached', label: 'Memcached — memcached client', iniName: 'memcached' },
+  { peclName: 'memcache', label: 'Memcache — legacy memcached client', iniName: 'memcache' },
+  { peclName: 'imagick', label: 'Imagick — ImageMagick image processing', iniName: 'imagick' },
+  { peclName: 'mongodb', label: 'MongoDB — MongoDB driver', iniName: 'mongodb' },
+  { peclName: 'igbinary', label: 'Igbinary — compact serializer', iniName: 'igbinary' },
+  { peclName: 'msgpack', label: 'MessagePack — binary serializer', iniName: 'msgpack' },
+  { peclName: 'amqp', label: 'AMQP — RabbitMQ / AMQP client', iniName: 'amqp' },
+  { peclName: 'rdkafka', label: 'rdkafka — Apache Kafka client', iniName: 'rdkafka' },
+  { peclName: 'grpc', label: 'gRPC — gRPC transport', iniName: 'grpc' },
+  { peclName: 'protobuf', label: 'Protobuf — Protocol Buffers', iniName: 'protobuf' },
+  { peclName: 'yaml', label: 'YAML — YAML parser/emitter', iniName: 'yaml' },
+  { peclName: 'zstd', label: 'Zstd — Zstandard compression', iniName: 'zstd' },
+  { peclName: 'lz4', label: 'LZ4 — fast compression', iniName: 'lz4' },
+  { peclName: 'ssh2', label: 'SSH2 — libssh2 bindings', iniName: 'ssh2' },
+  { peclName: 'uuid', label: 'UUID — libuuid bindings', iniName: 'uuid' },
+  { peclName: 'ds', label: 'Data Structures — efficient collections', iniName: 'ds' },
+  { peclName: 'event', label: 'Event — libevent bindings', iniName: 'event' },
+  { peclName: 'ev', label: 'Ev — libev event loop', iniName: 'ev' },
+  { peclName: 'pcov', label: 'PCOV — fast code coverage', iniName: 'pcov' },
+  { peclName: 'uopz', label: 'uopz — runtime hooks (testing)', iniName: 'uopz' },
+  { peclName: 'mailparse', label: 'Mailparse — parse MIME mail', iniName: 'mailparse' },
+  { peclName: 'oauth', label: 'OAuth — OAuth 1.0 consumer', iniName: 'oauth' },
+  { peclName: 'yac', label: 'Yac — lockless shared-memory cache', iniName: 'yac' },
+  { peclName: 'swoole', label: 'Swoole — async/coroutine runtime', iniName: 'swoole' },
+  { peclName: 'xlswriter', label: 'xlswriter — write Excel files', iniName: 'xlswriter' },
+  { peclName: 'sodium', label: 'Sodium — libsodium crypto', iniName: 'sodium' },
+  { peclName: 'gmagick', label: 'Gmagick — GraphicsMagick', iniName: 'gmagick' },
+  { peclName: 'parallel', label: 'parallel — parallel concurrency', iniName: 'parallel' },
+  { peclName: 'opentelemetry', label: 'OpenTelemetry — tracing/metrics', iniName: 'opentelemetry' },
 ];
 
 export interface PeclInstallableExtension {

@@ -33,6 +33,8 @@ export interface Site {
   doc_root: string;
   enabled?: boolean;
   favorite?: boolean;
+  rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa';
+  nginx_extra?: string;
 }
 
 export interface Status {
@@ -60,6 +62,7 @@ export interface AppConfig {
     launch_on_login?: boolean;
     xdebug?: boolean;
     enhanced_terminal?: boolean;
+    default_site?: string;
   };
   services?: Record<string, { enabled?: boolean }>;
 }

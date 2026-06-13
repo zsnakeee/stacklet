@@ -1,4 +1,4 @@
-import { lazy, Suspense, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
@@ -8,7 +8,24 @@ import { TitleBar } from '@/components/shell/TitleBar';
 import { Sidebar } from '@/components/shell/Sidebar';
 import { TopBar } from '@/components/shell/TopBar';
 import { bundledById, useStore } from '@/lib/store';
+import { devmgr } from '@/lib/devmgr';
+import { useToast } from '@/lib/toast';
 import type { Status } from '@/lib/types';
+
+/** Toast once when the launch update-check finds a newer release. */
+function useUpdateNotice() {
+  const toast = useToast();
+  const notified = useRef<string | null>(null);
+  useEffect(() => {
+    const off = devmgr.update.onStatus((s) => {
+      if (s.state === 'available' && notified.current !== s.version) {
+        notified.current = s.version;
+        toast.info(`Update ${s.version} available — open Settings → Updates to install.`);
+      }
+    });
+    return off;
+  }, [toast]);
+}
 
 const Dashboard = lazy(() =>
   import('@/pages/Dashboard').then((m) => ({ default: m.Dashboard })),
@@ -75,6 +92,7 @@ function Layout() {
   const location = useLocation();
   const { status, bootError, autostart } = useStore();
   const { t } = useTranslation();
+  useUpdateNotice();
   const title = pageTitle(location.pathname, status, t);
   const [collapsed, setCollapsed] = useState(() => {
     try {

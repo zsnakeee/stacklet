@@ -8,6 +8,7 @@ import {
   Hint,
   Input,
   Section,
+  Select,
   Toggle,
 } from '@/components/ui/primitives';
 import { LanguageMenu } from '@/components/shell/LanguageMenu';
@@ -46,6 +47,8 @@ export function Settings() {
     launch_on_login: false,
   });
   const [composerInstalled, setComposerInstalled] = useState<boolean | null>(null);
+  const [siteNames, setSiteNames] = useState<string[]>([]);
+  const defaultSite = config?.general?.default_site ?? '';
   const [tldInput, setTldInput] = useState('test');
   const [sslMsg, setSslMsg] = useState<StatusMsg>(null);
   const [envMsg, setEnvMsg] = useState<StatusMsg>(null);
@@ -67,6 +70,12 @@ export function Settings() {
       }
       try {
         setComposerInstalled((await devmgr.composer.status()).installed);
+      } catch {
+        // ignore
+      }
+      try {
+        const sites = (await devmgr.sites()) as { name: string }[];
+        setSiteNames(sites.map((s) => s.name).sort((a, b) => a.localeCompare(b)));
       } catch {
         // ignore
       }
@@ -593,6 +602,37 @@ export function Settings() {
               </Button>
             );
           })}
+        </div>
+
+        <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4">
+          <Field label="Default site for http://127.0.0.1/">
+            <Select
+              className="w-full max-w-sm"
+              value={defaultSite}
+              onChange={(e) =>
+                runAction({
+                  key: 'set-default-site',
+                  label: 'Update default site',
+                  global: true,
+                  run: async () => {
+                    await devmgr.settings.save({ general: { default_site: e.target.value } });
+                    await refresh();
+                  },
+                })
+              }
+            >
+              <option value="">Stacklet dashboard (list all sites)</option>
+              {siteNames.map((n) => (
+                <option key={n} value={n}>
+                  {n}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <Hint>
+            What loads at <code>http://127.0.0.1/</code> and any hostname no site claims. Choose a
+            project to serve it there, or keep the dashboard that links to every site.
+          </Hint>
         </div>
 
         <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4">

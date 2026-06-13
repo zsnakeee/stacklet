@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Badge, Button, Empty, Hint } from '@/components/ui/primitives';
+import { Badge, Button, Empty, Hint, Input } from '@/components/ui/primitives';
 import { QuickSettingsForm } from '@/pages/service/QuickSettingsForm';
 import { PHP_QUICK_FIELDS } from '@/lib/constants';
 import { useAction } from '@/lib/action';
@@ -26,6 +26,7 @@ function PhpExtensions({ version, reloadKey }: { version: string; reloadKey: num
   const [exts, setExts] = useState<PhpExtension[] | null>(null);
   const [pecl, setPecl] = useState<PeclInfo | null>(null);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState('');
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -52,15 +53,30 @@ function PhpExtensions({ version, reloadKey }: { version: string; reloadKey: num
   if (loading && !exts) return <Empty>Loading extensions…</Empty>;
   if (!exts) return <Empty>php.ini not found for this PHP build.</Empty>;
 
+  const q = query.trim().toLowerCase();
+  const matches = (...fields: (string | undefined)[]) =>
+    !q || fields.some((f) => f?.toLowerCase().includes(q));
+  const filteredExts = exts.filter((e) => matches(e.name));
+  const filteredPecl = (pecl?.packages ?? []).filter((p) =>
+    matches(p.peclName, p.iniName, p.label),
+  );
+
   return (
     <div className="flex flex-col gap-5">
+      <Input
+        value={query}
+        onChange={(e) => setQuery(e.target.value)}
+        placeholder="Search extensions (e.g. redis, gd, mongo)…"
+      />
       <div>
         <h4 className="mb-2 text-sm font-semibold text-foreground">Bundled extensions</h4>
         <div className="overflow-hidden rounded-lg border border-border">
           {exts.length === 0 ? (
             <p className="px-4 py-6 text-center text-sm text-text-muted">No DLLs in the ext folder yet.</p>
+          ) : filteredExts.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-text-muted">No bundled extensions match “{query}”.</p>
           ) : (
-            exts.map((ext) => (
+            filteredExts.map((ext) => (
               <div
                 key={ext.name}
                 className="flex items-center gap-3 border-b border-border/60 px-4 py-2 last:border-0"
@@ -117,7 +133,12 @@ function PhpExtensions({ version, reloadKey }: { version: string; reloadKey: num
           </Hint>
         )}
         <div className="overflow-hidden rounded-lg border border-border">
-          {(pecl?.packages ?? []).map((pkg) => {
+          {filteredPecl.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-text-muted">
+              No PECL packages match “{query}”.
+            </p>
+          ) : null}
+          {filteredPecl.map((pkg) => {
             const status = pkg.dllPresent
               ? pkg.enabled
                 ? { variant: 'installed' as const, label: 'Installed · on' }

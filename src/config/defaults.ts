@@ -18,6 +18,7 @@ export function defaultConfig(): DevConfig {
       launch_on_login: false,
       xdebug: false,
       enhanced_terminal: true,
+      default_site: '',
     },
     services: {
       nginx: {

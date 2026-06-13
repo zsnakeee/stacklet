@@ -102,7 +102,16 @@ export const MYSQL_QUICK_FIELDS: QuickField[] = [
 ];
 
 /** Logs page: kinds shown (service logs only — per-site logs live on the site page). */
-export const LOG_PAGE_KIND_ORDER = ['nginx', 'apache', 'php', 'mysql', 'postgres', 'redis'];
+export const LOG_PAGE_KIND_ORDER = [
+  'nginx',
+  'apache',
+  'php',
+  'mysql',
+  'postgres',
+  'redis',
+  'mongodb',
+  'mailpit',
+];
 export const LOG_PAGE_EXCLUDED_KINDS = new Set(['site', 'laravel']);
 export const LOG_KIND_LABELS: Record<string, string> = {
   nginx: 'Nginx',
@@ -111,4 +120,6 @@ export const LOG_KIND_LABELS: Record<string, string> = {
   mysql: 'MySQL',
   postgres: 'PostgreSQL',
   redis: 'Redis',
+  mongodb: 'MongoDB',
+  mailpit: 'Mailpit',
 };
