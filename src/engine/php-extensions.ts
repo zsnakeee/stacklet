@@ -10,10 +10,13 @@ const MARKER = `; ${BRAND.name} php extensions`;
 export const PHP_RECOMMENDED_EXTENSIONS = [
   'curl',
   'fileinfo',
+  'gd',
   'mbstring',
   'mysqli',
   'openssl',
   'pdo_mysql',
+  'pdo_sqlite',
+  'sqlite3',
   'zip',
 ] as const;
 

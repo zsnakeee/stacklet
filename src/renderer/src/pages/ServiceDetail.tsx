@@ -6,6 +6,7 @@ import { useAction } from '@/lib/action';
 import { badgeForRuntime } from '@/lib/badge';
 import { BUNDLED_RUNTIME, MAILPIT_UI_PORT } from '@/lib/constants';
 import { devmgr } from '@/lib/devmgr';
+import { tEngine } from '@/lib/engine-i18n';
 import { openServiceLog } from '@/lib/logs-helpers';
 import { bundledById, runtimeStatus, useStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
@@ -154,7 +155,7 @@ export function ServiceDetail() {
       <header className="flex items-start justify-between gap-4">
         <div>
           <h2 className="text-2xl font-bold">{svc.name}</h2>
-          <p className="mt-0.5 text-sm text-text-muted">{svc.description}</p>
+          <p className="mt-0.5 text-sm text-text-muted">{tEngine(svc.description)}</p>
         </div>
         <Badge variant={svc.installed ? 'installed' : 'missing'}>
           {svc.installed ? `v${svc.installedVersion ?? ''}` : 'Not installed'}

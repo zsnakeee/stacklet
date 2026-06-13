@@ -177,6 +177,7 @@ import {
   setProjectsDirOverride,
 } from '../shared/paths';
 import { apacheSitesConfPath } from '../bundled/apache-configure';
+import { ensureLaravelTrustedProxies } from './laravel-share';
 
 export type AppSettingsPatch = {
   general?: {
@@ -1956,6 +1957,12 @@ export class Orchestrator {
   async openSiteShare(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
+    // Auto-configure Laravel to trust the proxy so shared URLs use the public
+    // https host (avoids mixed-content/CORS on absolute asset URLs).
+    if (site.framework === 'laravel') {
+      const note = ensureLaravelTrustedProxies(site.root);
+      if (note) console.log(`${logPrefix()} share: ${note}`);
+    }
     const exe = await ensureNgrokInstalled(undefined, this.config.general.ngrok_path);
     const cfg = getNgrokConfigPath();
     const sslPort = this.config.services.nginx.ssl_port || 443;

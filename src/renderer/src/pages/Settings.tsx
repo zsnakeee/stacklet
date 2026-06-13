@@ -97,13 +97,13 @@ export function Settings() {
     });
   }, [config]);
 
-  const paths = {
-    'Data directory': status?.dataDir ?? '—',
-    'Config file': status?.configPath ?? '—',
-    Projects: status?.projectsDir ?? '—',
-    Logs: status?.logsDir ?? '—',
-    'Hosts file': status?.hostsPath ?? '—',
-  };
+  const paths: { label: string; value: string }[] = [
+    { label: t('settings.paths.dataDir'), value: status?.dataDir ?? '—' },
+    { label: t('settings.paths.configFile'), value: status?.configPath ?? '—' },
+    { label: t('settings.paths.projects'), value: status?.projectsDir ?? '—' },
+    { label: t('settings.paths.logs'), value: status?.logsDir ?? '—' },
+    { label: t('settings.paths.hostsFile'), value: status?.hostsPath ?? '—' },
+  ];
 
   const openPath = (p: string) => {
     if (!p || p === '—') return;
@@ -141,12 +141,12 @@ export function Settings() {
 
       <Section title={t('settings.sections.paths')}>
         <dl className="flex flex-col">
-          {Object.entries(paths).map(([label, value]) => (
+          {paths.map(({ label, value }) => (
             <div key={label} className="grid grid-cols-[10rem_1fr_auto] items-center gap-3 py-1.5 text-sm">
               <dt className="text-text-muted">{label}</dt>
               <dd className="break-all font-mono text-xs text-text-secondary">{value}</dd>
               <Button size="sm" onClick={() => openPath(value)}>
-                Open
+                {t('settings.common.open')}
               </Button>
             </div>
           ))}
@@ -169,12 +169,9 @@ export function Settings() {
               })
             }
           >
-            Move data directory…
+            {t('settings.paths.moveData')}
           </Button>
-          <Hint className="mt-1">
-            Pick an empty folder — Stacklet stops services, moves its data there, then asks you to
-            restart.
-          </Hint>
+          <Hint className="mt-1">{t('settings.paths.moveDataHint')}</Hint>
         </div>
         <div className="mt-3">
           <Button
@@ -194,13 +191,9 @@ export function Settings() {
               })
             }
           >
-            Use existing data folder…
+            {t('settings.paths.useExisting')}
           </Button>
-          <Hint className="mt-1">
-            Already have a Stacklet data folder from a previous install? Point Stacklet at it (no
-            files are moved), then restart. The folder must already contain Stacklet data
-            (config.toml, services, or certs).
-          </Hint>
+          <Hint className="mt-1">{t('settings.paths.useExistingHint')}</Hint>
         </div>
         <div className="mt-3">
           <Button
@@ -214,12 +207,9 @@ export function Settings() {
               })
             }
           >
-            Open error log
+            {t('settings.paths.openErrorLog')}
           </Button>
-          <Hint className="mt-1">
-            Opens app.log, where Stacklet records crashes and errors (from the app and its
-            background engine) for later diagnosis.
-          </Hint>
+          <Hint className="mt-1">{t('settings.paths.openErrorLogHint')}</Hint>
         </div>
         <div className="mt-3 flex items-center gap-2">
           <Button
@@ -235,12 +225,12 @@ export function Settings() {
                   if (!dir) return;
                   await devmgr.settings.setProjectsDir(dir);
                   await refresh();
-                  toast.success('Projects folder updated.');
+                  toast.success(t('settings.paths.projectsUpdated'));
                 },
               })
             }
           >
-            Change projects folder…
+            {t('settings.paths.changeProjects')}
           </Button>
           <Button
             size="sm"
@@ -251,40 +241,37 @@ export function Settings() {
                 run: async () => {
                   await devmgr.settings.setProjectsDir(null);
                   await refresh();
-                  toast.success('Projects folder reset to default.');
+                  toast.success(t('settings.paths.projectsReset'));
                 },
               })
             }
           >
-            Reset to default
+            {t('settings.paths.resetDefault')}
           </Button>
         </div>
-        <Hint className="mt-1">
-          New projects are created in the <strong>Projects</strong> folder above (customizable).
-          Existing sites keep their current location.
-        </Hint>
+        <Hint className="mt-1">{t('settings.paths.projectsHint')}</Hint>
       </Section>
 
       <Section title={t('settings.sections.startup')}>
-        <Hint>Control what happens when Stacklet launches and whether it starts with Windows.</Hint>
+        <Hint>{t('settings.startup.hint')}</Hint>
         <div className="mt-3 flex flex-col gap-3">
           <Toggle
-            label="Start minimized to the tray"
+            label={t('settings.startup.startMinimized')}
             checked={startup.start_minimized}
             onChange={(c) => setStartup((s) => ({ ...s, start_minimized: c }))}
           />
           <Toggle
-            label="Keep running in the tray when I close the window (otherwise closing exits Stacklet)"
+            label={t('settings.startup.keepTray')}
             checked={startup.close_to_tray}
             onChange={(c) => setStartup((s) => ({ ...s, close_to_tray: c }))}
           />
           <Toggle
-            label="Auto-start services on launch"
+            label={t('settings.startup.autostart')}
             checked={startup.autostart}
             onChange={(c) => setStartup((s) => ({ ...s, autostart: c }))}
           />
           <Toggle
-            label="Launch Stacklet at Windows login"
+            label={t('settings.startup.launchOnLogin')}
             checked={startup.launch_on_login}
             onChange={(c) => setStartup((s) => ({ ...s, launch_on_login: c }))}
           />
@@ -304,20 +291,15 @@ export function Settings() {
               })
             }
           >
-            Save startup settings
+            {t('settings.startup.save')}
           </Button>
         </div>
       </Section>
 
       <Section title={t('settings.sections.https')}>
-        <Hint>
-          Stacklet signs local sites with its own certificate authority. Trust it once in Windows
-          (admin/UAC), then restart your browser.
-        </Hint>
+        <Hint>{t('settings.https.hint')}</Hint>
         <p className={ssl.trusted ? 'mt-2 text-sm text-success' : 'mt-2 text-sm text-warning'}>
-          {ssl.trusted
-            ? 'Trusted — browsers should show https://*.test sites as secure after a restart.'
-            : 'Not trusted — Chrome/Edge will show “Not secure” until you install the Stacklet CA.'}
+          {ssl.trusted ? t('settings.https.trusted') : t('settings.https.notTrusted')}
         </p>
         {ssl.caCertPath && <p className="mt-1 font-mono text-xs text-text-muted">{ssl.caCertPath}</p>}
         <div className="mt-3">
@@ -336,7 +318,7 @@ export function Settings() {
                   const result = await devmgr.ssl.trust();
                   setSslMsg({ text: result.message, ok: result.ok });
                   if (result.ok) {
-                    toast.success('SSL certificate trusted');
+                    toast.success(t('settings.https.trustedToast'));
                     setSsl(await devmgr.ssl.status());
                     await refresh();
                   } else {
@@ -346,7 +328,7 @@ export function Settings() {
               })
             }
           >
-            Trust SSL certificate
+            {t('settings.https.trust')}
           </Button>
         </div>
         {sslMsg && (
@@ -357,21 +339,18 @@ export function Settings() {
       </Section>
 
       <Section title={t('settings.sections.environment')}>
-        <Hint>
-          Choose which folders to add to your Windows user PATH. Apply and PHP version changes sync
-          the checked items automatically.
-        </Hint>
+        <Hint>{t('settings.environment.hint')}</Hint>
         <div className="mt-3 flex gap-2">
           <Button size="sm" onClick={() => setSelectedPaths(new Set(envInfo.candidates.map((c) => c.id)))}>
-            Select all
+            {t('settings.environment.selectAll')}
           </Button>
           <Button size="sm" onClick={() => setSelectedPaths(new Set())}>
-            Select none
+            {t('settings.environment.selectNone')}
           </Button>
         </div>
         <div className="mt-3 flex flex-col gap-2">
           {envInfo.candidates.length === 0 ? (
-            <Empty>No service paths available. Install and enable services first.</Empty>
+            <Empty>{t('settings.environment.empty')}</Empty>
           ) : (
             envInfo.candidates.map((c) => (
               <Toggle
@@ -404,13 +383,13 @@ export function Settings() {
                 label: 'Save PATH selection',
                 run: async () => {
                   await persistSelection();
-                  setEnvMsg({ text: 'Selection saved and applied.', ok: true });
+                  setEnvMsg({ text: t('settings.environment.saved'), ok: true });
                   await refresh();
                 },
               })
             }
           >
-            Save selection
+            {t('settings.environment.saveSelection')}
           </Button>
           <Button
             size="sm"
@@ -424,14 +403,14 @@ export function Settings() {
                   await persistSelection();
                   const result = await devmgr.env.sync();
                   setEnvMsg({ text: result.message, ok: result.ok });
-                  if (result.ok) toast.success('PATH updated');
+                  if (result.ok) toast.success(t('settings.environment.pathUpdated'));
                   else toast.error(result.message);
                   await refresh();
                 },
               })
             }
           >
-            Update PATH now
+            {t('settings.environment.updatePath')}
           </Button>
           <Button
             variant="primary"
@@ -446,13 +425,13 @@ export function Settings() {
                   await persistSelection();
                   const result = await devmgr.env.restart(true);
                   setEnvMsg({ text: result.message, ok: result.ok });
-                  if (result.ok) toast.success('Environment restarted');
+                  if (result.ok) toast.success(t('settings.environment.envRestarted'));
                   else toast.error(result.message);
                 },
               })
             }
           >
-            Restart env
+            {t('settings.environment.restartEnv')}
           </Button>
         </div>
         {envMsg && (
@@ -463,10 +442,7 @@ export function Settings() {
       </Section>
 
       <Section title={t('settings.sections.services')}>
-        <Hint>
-          Disabled services are skipped by Start all and autostart, and are stopped when you save.
-          Settings are applied automatically when you save.
-        </Hint>
+        <Hint>{t('settings.servicesPanel.hint')}</Hint>
         <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-3">
           {SETTINGS_SERVICES.map(({ key, label }) => (
             <Toggle
@@ -494,13 +470,13 @@ export function Settings() {
                     general: { path_env_selected: [...selectedPaths] },
                     services,
                   });
-                  setSettingsMsg({ text: 'Saved and applied.', ok: true });
+                  setSettingsMsg({ text: t('settings.servicesPanel.saved'), ok: true });
                   await refresh();
                 },
               })
             }
           >
-            Save settings
+            {t('settings.servicesPanel.save')}
           </Button>
         </div>
         {settingsMsg && (
@@ -511,19 +487,15 @@ export function Settings() {
       </Section>
 
       <Section title={t('settings.sections.tools')}>
-        <Hint>
-          Composer is installed via the active PHP, so it always uses your default PHP version.
-          After installing, enable it under Environment (PATH) so <code>composer</code> works in any
-          terminal.
-        </Hint>
+        <Hint>{t('settings.tools.hint')}</Hint>
         <div className="mt-3 flex items-center gap-3">
-          <span className="text-sm text-foreground">Composer</span>
+          <span className="text-sm text-foreground">{t('settings.tools.composer')}</span>
           {composerInstalled === null ? (
-            <span className="text-xs text-text-muted">checking…</span>
+            <span className="text-xs text-text-muted">{t('settings.common.checking')}</span>
           ) : composerInstalled ? (
-            <span className="text-xs text-success">Installed</span>
+            <span className="text-xs text-success">{t('settings.common.installed')}</span>
           ) : (
-            <span className="text-xs text-text-muted">Not installed</span>
+            <span className="text-xs text-text-muted">{t('settings.common.notInstalled')}</span>
           )}
           <Button
             size="sm"
@@ -541,12 +513,12 @@ export function Settings() {
               })
             }
           >
-            {composerInstalled ? 'Reinstall' : 'Install Composer'}
+            {composerInstalled ? t('settings.common.reinstall') : t('settings.tools.installComposer')}
           </Button>
         </div>
         <div className="mt-4">
           <Toggle
-            label="Xdebug on-demand (route XDEBUG-triggered requests to an Xdebug-enabled PHP)"
+            label={t('settings.tools.xdebug')}
             checked={config?.general?.xdebug === true}
             onChange={(c) =>
               runAction({
@@ -560,10 +532,7 @@ export function Settings() {
               })
             }
           />
-          <Hint className="mt-1">
-            Requires Xdebug installed for your default PHP (Services → PHP → Extensions → PECL).
-            Trigger via a browser Xdebug extension or <code>?XDEBUG_TRIGGER=1</code>.
-          </Hint>
+          <Hint className="mt-1">{t('settings.tools.xdebugHint')}</Hint>
         </div>
       </Section>
 
@@ -574,10 +543,7 @@ export function Settings() {
       <NgrokSection />
 
       <Section title={t('settings.sections.webServer')}>
-        <Hint>
-          Choose which web server serves your sites. Install Apache from Services first; switching
-          stops one server and starts the other (PHP is shared via FastCGI).
-        </Hint>
+        <Hint>{t('settings.webServer.hint')}</Hint>
         <div className="mt-3 flex gap-2">
           {(['nginx', 'apache'] as const).map((ws) => {
             const active = (config?.general?.web_server ?? 'nginx') === ws;
@@ -605,13 +571,13 @@ export function Settings() {
         </div>
 
         <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4">
-          <Field label="Default site for http://127.0.0.1/">
+          <Field label={t('settings.webServer.defaultSite')}>
             <Dropdown
               className="max-w-sm"
-              ariaLabel="Default site"
+              ariaLabel={t('settings.webServer.defaultSite')}
               value={defaultSite}
               options={[
-                { value: '', label: 'Stacklet dashboard (list all sites)' },
+                { value: '', label: t('settings.webServer.dashboardOption') },
                 ...siteNames.map((n) => ({ value: n, label: n })),
               ]}
               onChange={(v) =>
@@ -627,14 +593,11 @@ export function Settings() {
               }
             />
           </Field>
-          <Hint>
-            What loads at <code>http://127.0.0.1/</code> and any hostname no site claims. Choose a
-            project to serve it there, or keep the dashboard that links to every site.
-          </Hint>
+          <Hint>{t('settings.webServer.defaultSiteHint')}</Hint>
         </div>
 
         <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4">
-          <Field label="Local TLD for site hostnames">
+          <Field label={t('settings.webServer.tld')}>
             <div className="flex items-center gap-2">
               <span className="text-text-muted">.</span>
               <Input
@@ -658,15 +621,11 @@ export function Settings() {
                   })
                 }
               >
-                Save TLD
+                {t('settings.webServer.saveTld')}
               </Button>
             </div>
           </Field>
-          <Hint>
-            Changing the TLD (e.g. <code>test</code> → <code>localhost</code>) regenerates hosts
-            entries, certificates, and vhosts — Windows may prompt for permission. Existing sites
-            move to the new TLD.
-          </Hint>
+          <Hint>{t('settings.webServer.tldHint')}</Hint>
         </div>
       </Section>
     </div>
@@ -872,12 +831,12 @@ function UpdatesSection() {
   const renderStatus = () => {
     switch (status.state) {
       case 'checking':
-        return <p className="text-sm text-text-muted">Checking for updates…</p>;
+        return <p className="text-sm text-text-muted">{t('settings.updates.checking')}</p>;
       case 'available':
         return (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-success">
-              Version {status.version} is available (you have {version}).
+              {t('settings.updates.available', { version: status.version, current: version })}
             </p>
             {status.notes && (
               <pre className="max-h-32 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-background/50 p-2 text-xs text-text-secondary">
@@ -886,29 +845,32 @@ function UpdatesSection() {
             )}
             <div>
               <Button size="sm" variant="primary" busy={busy} onClick={download}>
-                Download update
+                {t('settings.updates.download')}
               </Button>
             </div>
           </div>
         );
       case 'not-available':
-        return <p className="text-sm text-text-secondary">You’re on the latest version.</p>;
+        return <p className="text-sm text-text-secondary">{t('settings.updates.upToDate')}</p>;
       case 'downloading':
         return (
           <p className="text-sm text-text-secondary">
-            Downloading… {Math.round(status.percent)}% ({formatMB(status.transferred)} /{' '}
-            {formatMB(status.total)})
+            {t('settings.updates.downloading', {
+              percent: Math.round(status.percent),
+              transferred: formatMB(status.transferred),
+              total: formatMB(status.total),
+            })}
           </p>
         );
       case 'downloaded':
         return (
           <div className="flex flex-col gap-2">
             <p className="text-sm text-success">
-              Version {status.version} downloaded and ready to install.
+              {t('settings.updates.downloaded', { version: status.version })}
             </p>
             <div>
               <Button size="sm" variant="primary" onClick={() => devmgr.update.install()}>
-                Restart &amp; install
+                {t('settings.updates.restartInstall')}
               </Button>
             </div>
           </div>
@@ -922,12 +884,9 @@ function UpdatesSection() {
 
   return (
     <Section title={t('settings.sections.updates')}>
-      <Hint>
-        Stacklet checks GitHub for new releases. Updates are optional — the app works fully offline
-        and never updates without your go-ahead.
-      </Hint>
+      <Hint>{t('settings.updates.hint')}</Hint>
       <div className="mt-3 flex items-center justify-between py-1 text-sm">
-        <span className="text-text-muted">Current version</span>
+        <span className="text-text-muted">{t('settings.updates.currentVersion')}</span>
         <span className="font-mono text-text-secondary">v{version}</span>
       </div>
       <div className="mt-3 flex items-center gap-3">
@@ -937,12 +896,10 @@ function UpdatesSection() {
           disabled={!supported || busy}
           onClick={check}
         >
-          Check for updates
+          {t('settings.updates.check')}
         </Button>
         {!supported && (
-          <span className="text-xs text-text-muted">
-            Available only in the installed app, not in development.
-          </span>
+          <span className="text-xs text-text-muted">{t('settings.updates.devOnly')}</span>
         )}
       </div>
       <div className="mt-3">{renderStatus()}</div>
@@ -976,7 +933,7 @@ function NgrokSection() {
     setProgress('');
     try {
       setStatus(await devmgr.ngrok.install());
-      toast.success('ngrok installed.');
+      toast.success(t('settings.sharing.installedToast'));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
@@ -990,7 +947,7 @@ function NgrokSection() {
     try {
       setStatus(await devmgr.ngrok.setAuthToken(token));
       setToken('');
-      toast.success('ngrok auth token saved.');
+      toast.success(t('settings.sharing.tokenSaved'));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1001,31 +958,30 @@ function NgrokSection() {
   return (
     <Section title={t('settings.sections.sharing')}>
       <Hint>
-        “Share online” on a site exposes it publicly through ngrok. Stacklet installs ngrok for you;
-        add a free auth token from{' '}
+        {t('settings.sharing.hintPre')}{' '}
         <button
           type="button"
           className="text-primary underline"
           onClick={() => devmgr.shell.openExternal('https://dashboard.ngrok.com/get-started/your-authtoken')}
         >
-          your ngrok dashboard
+          {t('settings.sharing.dashboardLink')}
         </button>{' '}
-        so it can connect.
+        {t('settings.sharing.hintPost')}
       </Hint>
       <div className="mt-3 flex items-center gap-3">
         <span className="text-sm text-foreground">ngrok</span>
         {status === null ? (
-          <span className="text-xs text-text-muted">checking…</span>
+          <span className="text-xs text-text-muted">{t('settings.common.checking')}</span>
         ) : status.installed ? (
-          <span className="text-xs text-success">Installed</span>
+          <span className="text-xs text-success">{t('settings.common.installed')}</span>
         ) : (
-          <span className="text-xs text-text-muted">Not installed</span>
+          <span className="text-xs text-text-muted">{t('settings.common.notInstalled')}</span>
         )}
         {status?.installed &&
           (status.authConfigured ? (
-            <span className="text-xs text-success">• token set</span>
+            <span className="text-xs text-success">{t('settings.sharing.tokenSet')}</span>
           ) : (
-            <span className="text-xs text-warning">• no token</span>
+            <span className="text-xs text-warning">{t('settings.sharing.noToken')}</span>
           ))}
         <Button
           size="sm"
@@ -1037,7 +993,7 @@ function NgrokSection() {
             setBusy(true);
             try {
               setStatus(await devmgr.ngrok.setPath(file));
-              toast.success('Using your ngrok.exe.');
+              toast.success(t('settings.sharing.usingYours'));
             } catch (e) {
               toast.error(e instanceof Error ? e.message : String(e));
             } finally {
@@ -1045,16 +1001,13 @@ function NgrokSection() {
             }
           }}
         >
-          Use my ngrok.exe…
+          {t('settings.sharing.useMyNgrok')}
         </Button>
         <Button size="sm" busy={busy && !!progress} disabled={busy} onClick={install}>
-          {status?.installed ? 'Reinstall' : 'Install ngrok'}
+          {status?.installed ? t('settings.common.reinstall') : t('settings.sharing.installNgrok')}
         </Button>
       </div>
-      <Hint className="mt-1">
-        If antivirus blocks the download, click <strong>Use my ngrok.exe…</strong> and pick an ngrok
-        you already have (e.g. from ngrok.com).
-      </Hint>
+      <Hint className="mt-1">{t('settings.sharing.avHint')}</Hint>
       {progress && <p className="mt-2 text-xs text-text-muted">{progress}</p>}
       {status?.installed && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
@@ -1062,7 +1015,7 @@ function NgrokSection() {
             className="max-w-80"
             type="password"
             value={token}
-            placeholder="ngrok auth token"
+            placeholder={t('settings.sharing.tokenPlaceholder')}
             onChange={(e) => setToken(e.target.value)}
           />
           <Button
@@ -1071,7 +1024,7 @@ function NgrokSection() {
             disabled={busy || !token.trim()}
             onClick={saveToken}
           >
-            Save token
+            {t('settings.sharing.saveToken')}
           </Button>
         </div>
       )}
@@ -1107,7 +1060,7 @@ function TerminalSection() {
     setProgress('');
     try {
       setStatus(await devmgr.cmder.install());
-      toast.success('Cmder + Clink installed.');
+      toast.success(t('settings.terminal.installedToast'));
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
     } finally {
@@ -1125,7 +1078,7 @@ function TerminalSection() {
       if (on && !(status?.installed)) {
         setProgress('');
         setStatus(await devmgr.cmder.install());
-        toast.success('Cmder + Clink installed.');
+        toast.success(t('settings.terminal.installedToast'));
       }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : String(e));
@@ -1137,30 +1090,26 @@ function TerminalSection() {
 
   return (
     <Section title={t('settings.sections.terminal')}>
-      <Hint>
-        Stacklet can run its terminals (Open terminal, Tinker) through Cmder/Clink for rich tab
-        completion, history search, and a Git-aware prompt — the same as{' '}
-        <code>cmd /k vendor\init.bat</code>. Installed locally; no internet needed afterward.
-      </Hint>
+      <Hint>{t('settings.terminal.hint')}</Hint>
       <div className="mt-3 flex flex-col gap-3">
         <Toggle
-          label="Use Cmder/Clink autocomplete in Stacklet terminals"
+          label={t('settings.terminal.useClink')}
           checked={enabled}
           disabled={busy}
           onChange={(c) => void toggle(c)}
         />
       </div>
       <div className="mt-3 flex items-center gap-3">
-        <span className="text-sm text-foreground">Cmder + Clink</span>
+        <span className="text-sm text-foreground">{t('settings.terminal.cmder')}</span>
         {status === null ? (
-          <span className="text-xs text-text-muted">checking…</span>
+          <span className="text-xs text-text-muted">{t('settings.common.checking')}</span>
         ) : status.installed ? (
-          <span className="text-xs text-success">Installed</span>
+          <span className="text-xs text-success">{t('settings.common.installed')}</span>
         ) : (
-          <span className="text-xs text-text-muted">Not installed</span>
+          <span className="text-xs text-text-muted">{t('settings.common.notInstalled')}</span>
         )}
         <Button size="sm" className="ml-auto" disabled={busy} onClick={install}>
-          {status?.installed ? 'Reinstall' : 'Install Cmder'}
+          {status?.installed ? t('settings.common.reinstall') : t('settings.terminal.installCmder')}
         </Button>
       </div>
       {progress && <p className="mt-2 text-xs text-text-muted">{progress}</p>}
