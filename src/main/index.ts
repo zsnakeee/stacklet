@@ -1,4 +1,5 @@
 ﻿import { app, BrowserWindow, ipcMain, Menu, shell } from 'electron';
+import fs from 'fs';
 import path from 'path';
 import { initConfig, loadConfig } from '../config/store';
 import {
@@ -8,7 +9,7 @@ import {
   shutdownEngineOnQuit,
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
-import { migrateLegacyDataDir } from '../shared/paths';
+import { getDataDir, migrateLegacyDataDir } from '../shared/paths';
 import { BRAND, logPrefix } from '../shared/brand';
 import { initErrorLogging } from './logger';
 
@@ -29,6 +30,23 @@ if (!isPrimaryInstance) {
   // which must not run here — this process never bootstrapped the engine.
   app.exit(0);
 }
+
+// Disk-cache resilience. Even as a single instance, an ungraceful kill
+// (Ctrl+C / "Terminate batch job") leaves Chromium's default cache dir locked,
+// so the next launch can't migrate it — that's the
+//   "Unable to move the cache: Access is denied" / "Gpu Cache Creation failed"
+// spam. Point the HTTP cache at a dedicated, app-owned folder (no in-place
+// migration "move" happens when the dir is given explicitly) and turn off the
+// GPU shader disk cache (the one failing with -2). These switches must be set
+// before `app` is ready, hence at module load.
+try {
+  const cacheDir = path.join(getDataDir(), 'cache');
+  fs.mkdirSync(cacheDir, { recursive: true });
+  app.commandLine.appendSwitch('disk-cache-dir', cacheDir);
+} catch {
+  // best-effort — fall back to the default cache location
+}
+app.commandLine.appendSwitch('disable-gpu-shader-disk-cache');
 
 // Migrate the legacy %LOCALAPPDATA%\devmgr folder to \stacklet before anything
 // creates the new data dir.
