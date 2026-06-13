@@ -176,6 +176,7 @@ const stackletAPI: StackletAPI = {
   },
   node: {
     nvmStatus: () => ipcRenderer.invoke('stacklet:node:nvmStatus'),
+    nvmInstallSelf: () => ipcRenderer.invoke('stacklet:node:nvmInstallSelf'),
     nvmAvailable: () => ipcRenderer.invoke('stacklet:node:nvmAvailable'),
     nvmInstall: (version) => ipcRenderer.invoke('stacklet:node:nvmInstall', version),
     nvmUse: (version) => ipcRenderer.invoke('stacklet:node:nvmUse', version),

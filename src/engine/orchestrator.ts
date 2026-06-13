@@ -134,6 +134,7 @@ import { hostsFileHasAllEntries, getHostsPath } from '../helper/hosts';
 import { openTerminalCommand } from './site-terminal';
 import {
   detectNvm,
+  installNvmWindows,
   nvmInstall,
   nvmListAvailable,
   nvmUse,
@@ -279,6 +280,22 @@ export class Orchestrator {
     if (current === target) {
       return { ok: true, message: 'Data directory is already there.', path: target };
     }
+
+    // Reject a bare drive root like "F:\". You can't mkdir a volume root (that's
+    // the EPERM the IPC handler was crashing on), and dumping certs/logs/services
+    // straight onto a drive root is never intended — require a named subfolder.
+    const parent = path.dirname(target);
+    if (parent === target) {
+      throw new Error(
+        `Pick a folder inside the drive (e.g. ${path.join(target, 'Stacklet')}), not the drive root itself.`,
+      );
+    }
+    // The destination volume must actually exist (an unplugged/typo'd drive
+    // letter would otherwise fail deep inside the move with a cryptic error).
+    const root = path.parse(target).root;
+    if (root && !fs.existsSync(root)) {
+      throw new Error(`Drive ${root} isn't available. Connect it or choose another location.`);
+    }
     if (fs.existsSync(target) && fs.readdirSync(target).length > 0) {
       throw new Error('Choose an empty (or non-existent) target folder.');
     }
@@ -286,7 +303,16 @@ export class Orchestrator {
     await this.stopAllOnQuit();
     await this.stopIsolatedPhp();
 
-    fs.mkdirSync(path.dirname(target), { recursive: true });
+    try {
+      fs.mkdirSync(parent, { recursive: true });
+    } catch (err) {
+      const e = err as NodeJS.ErrnoException;
+      const why =
+        e.code === 'EPERM' || e.code === 'EACCES'
+          ? 'permission denied — pick a folder you can write to, or run Stacklet as administrator.'
+          : e.message;
+      throw new Error(`Can't create ${parent}: ${why}`);
+    }
     try {
       fs.renameSync(current, target);
     } catch {
@@ -1691,6 +1717,11 @@ export class Orchestrator {
   // ---- nvm-windows (global Node version management) ----
   async nvmStatus(): Promise<NvmStatus> {
     return detectNvm();
+  }
+
+  /** Auto-install nvm-windows itself (winget, else the GitHub installer). */
+  async installNvm(): Promise<string> {
+    return installNvmWindows();
   }
 
   async nvmAvailable(): Promise<string[]> {

@@ -15,6 +15,21 @@ import { initErrorLogging } from './logger';
 app.setName(BRAND.name);
 process.title = BRAND.name;
 
+// Single-instance guard. Stacklet keeps running in the tray after its window is
+// closed (see the window 'close' handler below), so launching it again — every
+// `npm start`, or clicking the icon twice — would otherwise spawn a SECOND
+// Electron process that fights the resident one over the shared GPU/HTTP disk
+// cache. That collision is exactly the log spam:
+//   "Unable to move the cache: Access is denied. (0x5)"
+//   "Unable to create cache" / "Gpu Cache Creation failed: -2"
+// Hand off to the already-running instance and exit immediately instead.
+const isPrimaryInstance = app.requestSingleInstanceLock();
+if (!isPrimaryInstance) {
+  // app.exit (not app.quit) skips the before-quit engine-shutdown path below,
+  // which must not run here — this process never bootstrapped the engine.
+  app.exit(0);
+}
+
 // Migrate the legacy %LOCALAPPDATA%\devmgr folder to \stacklet before anything
 // creates the new data dir.
 migrateLegacyDataDir();
@@ -122,7 +137,19 @@ function getWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+// A second launch was blocked by the single-instance lock above. Bring the
+// already-running window to the front instead of doing nothing (the user clicked
+// the icon expecting Stacklet to appear).
+app.on('second-instance', () => {
+  const win = getWindow();
+  if (!win) return;
+  if (!win.isVisible()) win.show();
+  if (win.isMinimized()) win.restore();
+  win.focus();
+});
+
 app.whenReady().then(() => {
+  if (!isPrimaryInstance) return;
   Menu.setApplicationMenu(null);
   initConfig();
   const prefs = readGeneralPrefs();
