@@ -74,7 +74,7 @@ export interface StackletAPI {
   park: (directory: string) => Promise<unknown>;
   sitesRemove: (name: string) => Promise<unknown>;
   dialog: {
-    pickDirectory: () => Promise<string | null>;
+    pickDirectory: (defaultPath?: string) => Promise<string | null>;
     pickFile: (opts?: { name?: string; extensions?: string[] }) => Promise<string | null>;
   };
   service: {
@@ -157,6 +157,12 @@ export interface StackletAPI {
     linkExisting: (sourcePath: string, projectName?: string) => Promise<unknown>;
     remove: (name: string) => Promise<unknown>;
     cloneGit: (url: string, name?: string) => Promise<unknown>;
+    /** Default Laragon projects folder if installed (else ''). */
+    laragonDir: () => Promise<string>;
+    /** Bulk-import each subfolder of projectsDir as a site. */
+    migrateLaragon: (
+      projectsDir: string,
+    ) => Promise<{ added: string[]; skipped: string[] }>;
     setEnabled: (name: string, enabled: boolean) => Promise<unknown>;
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;

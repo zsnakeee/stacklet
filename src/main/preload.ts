@@ -31,7 +31,8 @@ const stackletAPI: StackletAPI = {
   park: (directory) => ipcRenderer.invoke('stacklet:park', directory),
   sitesRemove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
   dialog: {
-    pickDirectory: () => ipcRenderer.invoke('stacklet:dialog:directory'),
+    pickDirectory: (defaultPath) =>
+      ipcRenderer.invoke('stacklet:dialog:directory', defaultPath),
     pickFile: (opts) => ipcRenderer.invoke('stacklet:dialog:file', opts),
   },
   service: {
@@ -88,6 +89,9 @@ const stackletAPI: StackletAPI = {
       ipcRenderer.invoke('stacklet:sites:linkExisting', sourcePath, projectName),
     remove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
     cloneGit: (url, name) => ipcRenderer.invoke('stacklet:sites:cloneGit', url, name),
+    laragonDir: () => ipcRenderer.invoke('stacklet:sites:laragonDir'),
+    migrateLaragon: (projectsDir) =>
+      ipcRenderer.invoke('stacklet:sites:migrateLaragon', projectsDir),
     setEnabled: (name, enabled) =>
       ipcRenderer.invoke('stacklet:sites:setEnabled', name, enabled),
     setFavorite: (name, favorite) =>

@@ -207,6 +207,28 @@ export function Sites() {
     });
   };
 
+  const migrateLaragon = () =>
+    runAction({
+      key: 'migrate-laragon',
+      label: 'Migrate from Laragon',
+      global: true,
+      successToast: false,
+      run: async () => {
+        const def = await stacklet.sitesActions.laragonDir();
+        const dir = await stacklet.dialog.pickDirectory(def || undefined);
+        if (!dir) return;
+        const res = await stacklet.sitesActions.migrateLaragon(dir);
+        await refresh();
+        navigate('/sites');
+        const msg =
+          `Imported ${res.added.length} project${res.added.length === 1 ? '' : 's'}` +
+          (res.skipped.length ? ` · skipped ${res.skipped.length}` : '') +
+          '.';
+        if (res.added.length) toast.success(msg);
+        else toast.info(res.skipped.length ? `Nothing new — ${msg}` : 'No projects found in that folder.');
+      },
+    });
+
   const submitClone = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -239,6 +261,9 @@ export function Sites() {
         </Button>
         <Button onClick={pickLinkDir}>{t('sites.addExisting')}</Button>
         <Button onClick={() => setCloneOpen(true)}>{t('sites.cloneGit')}</Button>
+        <Button onClick={migrateLaragon} title="Import all projects from a Laragon (or any) www folder">
+          Migrate from Laragon
+        </Button>
         <Input
           type="search"
           placeholder={t('sites.searchPlaceholder')}

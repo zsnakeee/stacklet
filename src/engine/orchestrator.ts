@@ -1745,6 +1745,55 @@ export class Orchestrator {
     return this.getSites();
   }
 
+  /**
+   * Bulk-import projects from a Laragon (or any) projects folder: register each
+   * immediate subdirectory as a site, skipping ones already registered or whose
+   * name/hostname collides. Default Laragon root is C:\laragon\www.
+   */
+  async migrateFromLaragon(
+    projectsDir: string,
+  ): Promise<{ added: string[]; skipped: string[]; sites: Site[] }> {
+    const dir = path.resolve(projectsDir);
+    if (!fs.existsSync(dir) || !fs.statSync(dir).isDirectory()) {
+      throw new Error(`Folder not found: ${dir}`);
+    }
+    const existingRoots = new Set(
+      this.sites.map((s) => path.resolve(s.root).toLowerCase()),
+    );
+    const added: string[] = [];
+    const skipped: string[] = [];
+
+    for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue;
+      const root = path.join(dir, entry.name);
+      if (existingRoots.has(root.toLowerCase())) {
+        skipped.push(entry.name);
+        continue;
+      }
+      try {
+        const { name, root: resolved } = resolveExistingProjectPath(root);
+        addRegisteredSite(name, resolved);
+        added.push(name);
+      } catch {
+        // duplicate name/hostname, or not a valid project root — skip it
+        skipped.push(entry.name);
+      }
+    }
+
+    this.refreshSites();
+    await this.apply();
+    await this.provisionSiteHostsAndSsl();
+    return { added, skipped, sites: this.getSites() };
+  }
+
+  /** Default Laragon projects folder if Laragon is installed (else empty). */
+  laragonProjectsDir(): string {
+    for (const candidate of ['C:\\laragon\\www', 'C:\\laragon']) {
+      if (fs.existsSync(candidate)) return candidate;
+    }
+    return '';
+  }
+
   async removeSite(name: string): Promise<Site[]> {
     await this.reverbManager.stopSite(name);
     removeRegisteredSite(name);

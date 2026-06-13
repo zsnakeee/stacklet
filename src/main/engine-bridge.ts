@@ -348,6 +348,11 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
       return { sites, status: await getEngine().status() };
     },
   );
+  ipcMain.handle('stacklet:sites:laragonDir', () => getEngine().laragonProjectsDir());
+  ipcMain.handle('stacklet:sites:migrateLaragon', async (_e, projectsDir: string) => {
+    const result = await getEngine().migrateFromLaragon(projectsDir);
+    return { ...result, status: await getEngine().status() };
+  });
   ipcMain.handle('stacklet:sites:cloneGit', async (_e, url: string, name?: string) => {
     const sites = await getEngine().cloneGitSite(url, name);
     return { sites, status: await getEngine().status() };
@@ -464,9 +469,12 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stacklet:node:siteInfo', (_e, name: string) =>
     getEngine().getSiteNodeInfo(name),
   );
-  ipcMain.handle('stacklet:dialog:directory', async () => {
+  ipcMain.handle('stacklet:dialog:directory', async (_e, defaultPath?: string) => {
     const win = getWindow();
-    const opts = { properties: ['openDirectory'] as ('openDirectory')[] };
+    const opts = {
+      properties: ['openDirectory'] as ('openDirectory')[],
+      ...(defaultPath ? { defaultPath } : {}),
+    };
     const result = win
       ? await dialog.showOpenDialog(win, opts)
       : await dialog.showOpenDialog(opts);
