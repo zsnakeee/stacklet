@@ -206,7 +206,15 @@ export type AppSettingsPatch = {
   }>;
 };
 
-const SERVICE_START_ORDER = ['nginx', 'php-fpm', 'mysql', 'postgres', 'redis'] as const;
+const SERVICE_START_ORDER = [
+  'nginx',
+  'php-fpm',
+  'mysql',
+  'postgres',
+  'redis',
+  'mongodb',
+  'mailpit',
+] as const;
 
 export type ApplyOptions = {
   /** Run PHP ini maintenance in the background (UI re-apply). */
@@ -233,9 +241,18 @@ function configServiceKeyToRuntime(
 }
 
 /** Order an arbitrary service list for sequential start (exported for tests). */
+/**
+ * Order services for sequential start. The web server (nginx OR apache) goes
+ * first, then the canonical order. Names not in the order list — most notably
+ * `apache` (the web-server slot resolves to it when Apache is active) — must NOT
+ * be dropped, or "Start all" silently skips the web server on Apache.
+ */
 export function orderServicesForSequentialStart(services: string[]): string[] {
-  const requested = new Set(services);
-  return SERVICE_START_ORDER.filter((name) => requested.has(name));
+  const requested = [...new Set(services)];
+  const order = ['nginx', 'apache', ...SERVICE_START_ORDER.filter((n) => n !== 'nginx')];
+  const known = order.filter((name) => requested.includes(name));
+  const rest = requested.filter((name) => !order.includes(name));
+  return [...known, ...rest];
 }
 
 const SSL_TRUST_CACHE_MS = 60_000;
@@ -1126,7 +1143,8 @@ export class Orchestrator {
     this.markPhpAutoRestart(false);
     await this.reverbManager.stopAll();
     await this.stopIsolatedPhp();
-    const order = [...SERVICE_START_ORDER].reverse();
+    // Include apache (the web-server slot) so it's stopped on quit too.
+    const order = ['apache', ...SERVICE_START_ORDER].reverse();
     for (const name of order) {
       try {
         const svc = this.getService(name);
