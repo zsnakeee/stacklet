@@ -105,7 +105,11 @@ import {
   loadSitesFromRegistry,
   removeRegisteredSite,
 } from './sites-registry';
+import { applyReverbEnv, formatReverbEnvSuggestion, suggestReverbEnv } from './reverb-env';
+import type { ReverbPatch } from './reverb-ports';
 import { updateRegisteredSite } from './site-config';
+import { SiteReverbManager } from './site-processes/manager';
+import { detectReverbInstalled } from './site-processes/reverb';
 import {
   collectEnvPaths,
   listEnvPathCandidates,
@@ -194,6 +198,7 @@ export class Orchestrator {
   private phpAutoRestart = false;
   private phpSupervisorTimer: ReturnType<typeof setInterval> | null = null;
   private phpFpmHealthFailures = 0;
+  private readonly reverbManager = new SiteReverbManager();
 
   constructor(config?: DevConfig) {
     this.config = config ?? loadConfig();
@@ -508,6 +513,9 @@ export class Orchestrator {
     if (targets.includes('php-fpm')) {
       this.markPhpAutoRestart(true);
     }
+    if (!services || services.length === 0) {
+      await this.syncSiteReverb();
+    }
   }
 
   /** Start services one at a time in safe order (launch path only). */
@@ -556,6 +564,12 @@ export class Orchestrator {
     }
 
     onPhase?.('finishing');
+    try {
+      await this.syncSiteReverb();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn('[dev-mgr] reverb autostart:', msg);
+    }
     void this.applyPhpMaintenance()
       .then(() => onPhase?.('ready'))
       .catch((err) => {
@@ -566,6 +580,9 @@ export class Orchestrator {
   }
 
   async stop(services?: string[]): Promise<void> {
+    if (!services || services.length === 0) {
+      await this.reverbManager.stopAll();
+    }
     const targets = this.resolveServiceNames(services);
     if (targets.includes('php-fpm')) {
       this.markPhpAutoRestart(false);
@@ -582,6 +599,7 @@ export class Orchestrator {
   /** Stop every configured service on app exit (nginx master + workers included). */
   async stopAllOnQuit(): Promise<void> {
     this.markPhpAutoRestart(false);
+    await this.reverbManager.stopAll();
     const order = [...SERVICE_START_ORDER].reverse();
     for (const name of order) {
       try {
@@ -1084,6 +1102,7 @@ export class Orchestrator {
   }
 
   async removeSite(name: string): Promise<Site[]> {
+    await this.reverbManager.stopSite(name);
     removeRegisteredSite(name);
     this.refreshSites();
     await this.apply();
@@ -1094,6 +1113,7 @@ export class Orchestrator {
     updateRegisteredSite(name, { enabled });
     this.refreshSites();
     await this.apply();
+    await this.syncSiteReverb();
     if (enabled) await this.provisionSiteHostsAndSsl();
     return this.getSites();
   }
@@ -1128,7 +1148,60 @@ export class Orchestrator {
   getSiteDetailByName(name: string) {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
-    return getSiteDetail(site);
+    const detail = getSiteDetail(site);
+    const hasReverb = site.framework === 'laravel' ? detectReverbInstalled(site) : false;
+    const reverbPort = site.reverb?.enabled ? site.reverb.port : undefined;
+    const reverbEnvSuggestion =
+      reverbPort !== undefined
+        ? suggestReverbEnv(site, this.config.services.nginx.ssl_port, reverbPort)
+        : null;
+    return {
+      ...detail,
+      hasReverb,
+      reverb: site.reverb ?? null,
+      reverbStatus: this.reverbManager.getStatus(name),
+      redisEnabled: this.config.services.redis.enabled !== false,
+      reverbEnvSuggestion,
+      reverbEnvSuggestionText: reverbEnvSuggestion
+        ? formatReverbEnvSuggestion(reverbEnvSuggestion)
+        : null,
+    };
+  }
+
+  async setSiteReverb(name: string, patch: ReverbPatch): Promise<Site[]> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    if (site.framework !== 'laravel') {
+      throw new Error('Reverb is only available for Laravel sites');
+    }
+    updateRegisteredSite(name, { reverb: patch });
+    this.refreshSites();
+    await this.apply();
+    await this.syncSiteReverb();
+    return this.getSites();
+  }
+
+  async restartSiteReverb(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    await this.reverbManager.restart(site);
+  }
+
+  async applySiteReverbEnv(name: string): Promise<string[]> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    if (!site.reverb?.enabled || !site.reverb.port) {
+      throw new Error('Enable Reverb for this site first');
+    }
+    return applyReverbEnv(site, this.config.services.nginx.ssl_port, site.reverb.port);
+  }
+
+  getSiteReverbStatus(name: string) {
+    return this.reverbManager.getStatus(name);
+  }
+
+  private async syncSiteReverb(): Promise<void> {
+    await this.reverbManager.sync(this.sites, this.config);
   }
 
   async runSiteArtisan(name: string, args: string[]): Promise<string> {

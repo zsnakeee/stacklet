@@ -1,4 +1,8 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+vi.mock('../services/mysql', () => ({
+  findPidListeningOnPort: () => undefined,
+}));
 import {
   assertHostnamesAvailable,
   mergeSitePatch,
@@ -79,5 +83,11 @@ describe('mergeSitePatch', () => {
   it('sets booleans', () => {
     expect(mergeSitePatch(base, { enabled: false }).enabled).toBe(false);
     expect(mergeSitePatch(base, { favorite: true }).favorite).toBe(true);
+  });
+
+  it('enables reverb with auto-assigned port', () => {
+    const next = mergeSitePatch(base, { reverb: { enabled: true } }, [base]);
+    expect(next.reverb?.enabled).toBe(true);
+    expect(next.reverb?.port).toBe(8080);
   });
 });

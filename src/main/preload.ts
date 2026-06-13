@@ -104,12 +104,19 @@ export interface DevmgrAPI {
     setEnabled: (name: string, enabled: boolean) => Promise<unknown>;
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;
+    setReverb: (
+      name: string,
+      patch: { enabled?: boolean; port?: number | null },
+    ) => Promise<unknown>;
   };
   site: {
     detail: (name: string) => Promise<unknown>;
     openInExplorer: (name: string) => Promise<void>;
     artisan: (name: string, args: string[]) => Promise<string>;
     resolveLog: (name: string) => Promise<string | null>;
+    reverbStatus: (name: string) => Promise<unknown>;
+    applyReverbEnv: (name: string) => Promise<unknown>;
+    restartReverb: (name: string) => Promise<unknown>;
   };
   logs: {
     list: () => Promise<{ id: string; label: string; kind: string }[]>;
@@ -239,12 +246,16 @@ const devmgrAPI: DevmgrAPI = {
       ipcRenderer.invoke('devmgr:sites:setFavorite', name, favorite),
     setDomain: (name, domain, aliases) =>
       ipcRenderer.invoke('devmgr:sites:setDomain', name, domain, aliases),
+    setReverb: (name, patch) => ipcRenderer.invoke('devmgr:sites:setReverb', name, patch),
   },
   site: {
     detail: (name) => ipcRenderer.invoke('devmgr:sites:detail', name),
     openInExplorer: (name) => ipcRenderer.invoke('devmgr:sites:openInExplorer', name),
     artisan: (name, args) => ipcRenderer.invoke('devmgr:sites:artisan', name, args),
     resolveLog: (name) => ipcRenderer.invoke('devmgr:sites:resolveLog', name),
+    reverbStatus: (name) => ipcRenderer.invoke('devmgr:sites:reverbStatus', name),
+    applyReverbEnv: (name) => ipcRenderer.invoke('devmgr:sites:applyReverbEnv', name),
+    restartReverb: (name) => ipcRenderer.invoke('devmgr:sites:restartReverb', name),
   },
   services: {
     catalog: () => ipcRenderer.invoke('devmgr:services:catalog'),

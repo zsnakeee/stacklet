@@ -45,6 +45,30 @@ function clientMaxBodySizeDirective(config: DevConfig): string {
   return `client_max_body_size ${size};`;
 }
 
+function reverbProxyLocations(port: number): string {
+  const upstream = `http://127.0.0.1:${port}`;
+  const headers = `
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header Scheme $scheme;
+    proxy_set_header SERVER_PORT $server_port;
+    proxy_set_header REMOTE_ADDR $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "Upgrade";`.trim();
+
+  return `
+  location /app {
+    ${headers}
+    proxy_pass ${upstream};
+  }
+
+  location /apps {
+    ${headers}
+    proxy_pass ${upstream};
+  }`.trim();
+}
+
 function fastcgiPhpLocation(config: DevConfig): string {
   const opts = mergeNginxOptions(config.services.nginx.options);
   const bodyLimit = clientMaxBodySizeDirective(config);
@@ -68,6 +92,10 @@ function serverBlock(site: Site, config: DevConfig, sslCert: string, leafKey: st
   const docRoot = nginxPathLiteral(site.doc_root);
   const accessLog = nginxPathLiteral(path.join(getLogsDir(), 'sites', site.name, 'access.log'));
   const errorLog = nginxPathLiteral(path.join(getLogsDir(), 'sites', site.name, 'error.log'));
+  const reverbBlock =
+    site.reverb?.enabled && site.reverb.port
+      ? `${reverbProxyLocations(site.reverb.port)}\n\n  `
+      : '';
 
   return `
 server {
@@ -84,7 +112,7 @@ server {
   access_log ${accessLog};
   error_log  ${errorLog};
 
-  location / {
+  ${reverbBlock}location / {
     ${clientMaxBodySizeDirective(config)}
     try_files $uri $uri/ /index.php?$query_string;
   }

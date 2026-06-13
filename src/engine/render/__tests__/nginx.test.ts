@@ -112,4 +112,40 @@ describe('renderNginxVhosts', () => {
     expect(conf).not.toContain('off.test');
     expect(conf).toContain('No registered sites');
   });
+
+  it('adds Reverb WebSocket proxy blocks when enabled', () => {
+    const config = defaultConfig();
+    const sites: Site[] = [
+      {
+        name: 'shop',
+        hostname: 'shop.test',
+        root: 'C:/sites/shop',
+        doc_root: 'C:/sites/shop/public',
+        framework: 'laravel',
+        reverb: { enabled: true, port: 8080 },
+      },
+    ];
+    const conf = renderNginxVhosts(config, sites);
+    expect(conf).toContain('location /app {');
+    expect(conf).toContain('location /apps {');
+    expect(conf).toContain('proxy_pass http://127.0.0.1:8080;');
+    expect(conf).toContain('proxy_set_header Upgrade $http_upgrade;');
+  });
+
+  it('omits Reverb proxy blocks when disabled', () => {
+    const config = defaultConfig();
+    const sites: Site[] = [
+      {
+        name: 'shop',
+        hostname: 'shop.test',
+        root: 'C:/sites/shop',
+        doc_root: 'C:/sites/shop/public',
+        framework: 'laravel',
+        reverb: { enabled: false, port: 8080 },
+      },
+    ];
+    const conf = renderNginxVhosts(config, sites);
+    expect(conf).not.toContain('location /app {');
+    expect(conf).not.toContain('proxy_pass http://127.0.0.1:8080;');
+  });
 });

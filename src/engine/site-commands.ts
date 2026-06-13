@@ -35,7 +35,7 @@ export function getSiteDetail(site: Site) {
   };
 }
 
-function resolvePhpBinary(): string {
+export function resolvePhpBinary(): string {
   const version = getActivePhpVersion();
   if (!version) {
     throw new Error('No active PHP version. Install PHP and set a default version.');

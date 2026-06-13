@@ -1,7 +1,8 @@
 ﻿import fs from 'fs';
 import path from 'path';
-import type { Site } from '../config/types';
+import type { Site, SiteReverbConfig } from '../config/types';
 import { ensureDir, getSitesManifestPath } from '../shared/paths';
+import { resolveSiteReverb } from './reverb-ports';
 import { detectFramework, effectiveHostname, resolveDocRoot, siteHostnameFromDirName } from './sites';
 
 export interface RegisteredSite {
@@ -11,6 +12,7 @@ export interface RegisteredSite {
   aliases?: string[];
   enabled?: boolean;
   favorite?: boolean;
+  reverb?: SiteReverbConfig;
 }
 
 function safeSiteName(raw: string, fallbackRoot: string): string {
@@ -54,10 +56,15 @@ function normalizeAliasList(aliases: unknown): string[] {
   return out;
 }
 
-export function registeredToSite(record: RegisteredSite): Site | null {
+export function registeredToSite(
+  record: RegisteredSite,
+  allRecords?: RegisteredSite[],
+): Site | null {
   const root = path.resolve(record.root);
   if (!fs.existsSync(root)) return null;
   const framework = detectFramework(root);
+  const records = allRecords ?? loadRegisteredSites();
+  const reverb = resolveSiteReverb(record, records);
   return {
     name: record.name,
     hostname: effectiveHostname(record),
@@ -67,13 +74,15 @@ export function registeredToSite(record: RegisteredSite): Site | null {
     enabled: record.enabled !== false,
     favorite: record.favorite === true,
     aliases: normalizeAliasList(record.aliases),
+    reverb,
   };
 }
 
 export function loadSitesFromRegistry(): Site[] {
+  const records = loadRegisteredSites();
   const sites: Site[] = [];
-  for (const record of loadRegisteredSites()) {
-    const site = registeredToSite(record);
+  for (const record of records) {
+    const site = registeredToSite(record, records);
     if (site) sites.push(site);
   }
   return sites.sort((a, b) => {

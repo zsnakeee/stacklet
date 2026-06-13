@@ -273,6 +273,24 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('devmgr:sites:artisan', async (_e, name: string, args: string[]) =>
     getEngine().runSiteArtisan(name, args),
   );
+  ipcMain.handle(
+    'devmgr:sites:setReverb',
+    async (_e, name: string, patch: { enabled?: boolean; port?: number | null }) => {
+      const sites = await getEngine().setSiteReverb(name, patch);
+      return { sites, status: await getEngine().status() };
+    },
+  );
+  ipcMain.handle('devmgr:sites:reverbStatus', (_e, name: string) =>
+    getEngine().getSiteReverbStatus(name),
+  );
+  ipcMain.handle('devmgr:sites:applyReverbEnv', async (_e, name: string) => {
+    const updatedKeys = await getEngine().applySiteReverbEnv(name);
+    return { updatedKeys, detail: getEngine().getSiteDetailByName(name) };
+  });
+  ipcMain.handle('devmgr:sites:restartReverb', async (_e, name: string) => {
+    await getEngine().restartSiteReverb(name);
+    return { detail: getEngine().getSiteDetailByName(name) };
+  });
   ipcMain.handle('devmgr:sites:resolveLog', (_e, name: string) =>
     getEngine().resolveLogIdForSite(name),
   );

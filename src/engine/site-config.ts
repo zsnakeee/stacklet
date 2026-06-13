@@ -1,3 +1,4 @@
+import { mergeReverbPatch, type ReverbPatch } from './reverb-ports';
 import { loadRegisteredSites, saveRegisteredSites, type RegisteredSite } from './sites-registry';
 import { effectiveHostname } from './sites';
 
@@ -6,6 +7,7 @@ export interface SitePatch {
   aliases?: string[];
   enabled?: boolean;
   favorite?: boolean;
+  reverb?: ReverbPatch;
 }
 
 const LABEL = '[a-z0-9]([a-z0-9-]*[a-z0-9])?';
@@ -56,7 +58,11 @@ export function assertHostnamesAvailable(
 }
 
 /** Pure merge of a patch into a record, validating hostnames. */
-export function mergeSitePatch(record: RegisteredSite, patch: SitePatch): RegisteredSite {
+export function mergeSitePatch(
+  record: RegisteredSite,
+  patch: SitePatch,
+  allRecords?: RegisteredSite[],
+): RegisteredSite {
   const next: RegisteredSite = { ...record };
   if (patch.domain !== undefined) {
     if (patch.domain === null || patch.domain.trim() === '') {
@@ -72,6 +78,10 @@ export function mergeSitePatch(record: RegisteredSite, patch: SitePatch): Regist
   }
   if (patch.enabled !== undefined) next.enabled = patch.enabled;
   if (patch.favorite !== undefined) next.favorite = patch.favorite;
+  if (patch.reverb !== undefined) {
+    const records = allRecords ?? [record];
+    return mergeReverbPatch(next, patch.reverb, records);
+  }
   return next;
 }
 
@@ -80,7 +90,7 @@ export function updateRegisteredSite(name: string, patch: SitePatch): Registered
   const records = loadRegisteredSites();
   const idx = records.findIndex((r) => r.name === name);
   if (idx === -1) throw new Error(`Site not found: ${name}`);
-  const updated = mergeSitePatch(records[idx], patch);
+  const updated = mergeSitePatch(records[idx], patch, records);
   assertHostnamesAvailable(records, name, recordHostnames(updated));
   records[idx] = updated;
   saveRegisteredSites(records);

@@ -120,6 +120,12 @@ export interface DevConfig {
   };
 }
 
+/** Per-site Laravel Reverb (WebSocket) settings. */
+export interface SiteReverbConfig {
+  enabled?: boolean;
+  port?: number;
+}
+
 export interface Site {
   name: string;
   hostname: string;
@@ -132,4 +138,5 @@ export interface Site {
   favorite?: boolean;
   /** Extra server_names beyond the primary hostname. */
   aliases?: string[];
+  reverb?: SiteReverbConfig;
 }

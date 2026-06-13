@@ -1539,6 +1539,26 @@ function renderSites() {
   }
 }
 
+function formatReverbStatus(detail) {
+  if (!detail.hasReverb) {
+    return { text: 'Not installed', className: 'reverb-status reverb-status--warn' };
+  }
+  if (!detail.redisEnabled) {
+    return { text: 'Redis off', className: 'reverb-status reverb-status--warn' };
+  }
+  const state = detail.reverbStatus?.state;
+  if (state === 'running') {
+    return { text: 'Running', className: 'reverb-status reverb-status--ok' };
+  }
+  if (state === 'error') {
+    return { text: detail.reverbStatus?.message || 'Error', className: 'reverb-status reverb-status--err' };
+  }
+  if (state === 'not_configured') {
+    return { text: 'Not configured', className: 'reverb-status reverb-status--warn' };
+  }
+  return { text: 'Stopped', className: 'reverb-status' };
+}
+
 async function renderSiteDetail(siteName) {
   if (!siteDetailRootEl) return;
 
@@ -1629,6 +1649,50 @@ async function renderSiteDetail(siteName) {
       <p class="settings-status" id="site-config-status" hidden></p>
     </section>
   `;
+
+  if (isLaravel && detail.hasArtisan) {
+    const reverbEnabled = detail.reverb?.enabled === true;
+    const reverbPortValue =
+      detail.reverb?.port !== undefined ? String(detail.reverb.port) : '';
+    const reverbStatus = formatReverbStatus(detail);
+    const reverbHint = !detail.hasReverb
+      ? 'Install Reverb first: <code>php artisan install:broadcasting</code>'
+      : !detail.redisEnabled
+        ? 'Redis is disabled in Settings — enable it for broadcasting at scale.'
+        : 'Stacklet starts <code>php artisan reverb:start</code>, proxies <code>/app</code> and <code>/apps</code> through nginx, and assigns an internal port (8080+).';
+
+    siteDetailRootEl.innerHTML += `
+    <section class="detail-section site-reverb">
+      <h3>Laravel Reverb</h3>
+      <div class="reverb-status-row">
+        <span class="reverb-status-row__label">Status</span>
+        <span class="${escapeAttr(reverbStatus.className)}">${escapeHtml(reverbStatus.text)}</span>
+      </div>
+      <label class="settings-toggle">
+        <input type="checkbox" id="site-reverb-enabled"${reverbEnabled ? ' checked' : ''}${detail.hasReverb ? '' : ' disabled'} />
+        <span>Enable Laravel Reverb (WebSockets)</span>
+      </label>
+      <form class="site-reverb-form" id="site-reverb-form">
+        <label class="field">
+          <span>Reverb port (internal)</span>
+          <input type="number" name="port" min="8080" max="8099" value="${escapeAttr(reverbPortValue)}" placeholder="Auto" autocomplete="off"${detail.hasReverb ? '' : ' disabled'} />
+        </label>
+        <div class="detail-actions">
+          <button type="submit" class="btn btn--primary btn--sm"${detail.hasReverb ? '' : ' disabled'}>Save Reverb</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="site-reverb-restart"${reverbEnabled && detail.hasReverb ? '' : ' disabled'}>Restart Reverb</button>
+          <button type="button" class="btn btn--ghost btn--sm" id="site-reverb-env"${reverbEnabled && detail.hasReverb ? '' : ' disabled'}>Apply to .env</button>
+        </div>
+        <p class="detail-hint">${reverbHint}</p>
+        ${
+          detail.reverbEnvSuggestionText
+            ? `<pre class="site-detail__output site-reverb-env-preview">${escapeHtml(detail.reverbEnvSuggestionText)}</pre>`
+            : ''
+        }
+      </form>
+      <p class="settings-status" id="site-reverb-status" hidden></p>
+    </section>
+  `;
+  }
 
   const root = siteDetailRootEl;
   bindExternalUrlLinks(root);
@@ -1733,6 +1797,92 @@ async function renderSiteDetail(siteName) {
         await refresh();
         await renderSiteDetail(siteName);
         showCfgStatus('Domain saved.', true);
+      },
+    });
+  });
+
+  const showReverbStatus = (text, ok) => {
+    const el = root.querySelector('#site-reverb-status');
+    if (!el) return;
+    el.hidden = false;
+    el.textContent = text;
+    el.className = `settings-status ${ok ? 'settings-status--ok' : 'settings-status--err'}`;
+  };
+
+  const parseReverbPortInput = (raw) => {
+    const trimmed = String(raw ?? '').trim();
+    if (!trimmed) return null;
+    const port = Number(trimmed);
+    if (!Number.isInteger(port)) throw new Error('Reverb port must be a whole number');
+    return port;
+  };
+
+  root.querySelector('#site-reverb-enabled')?.addEventListener('change', (e) => {
+    const input = e.target;
+    const portInput = root.querySelector('#site-reverb-form [name="port"]');
+    void runAction({
+      key: `site-reverb-enabled-${siteName}`,
+      label: input.checked ? 'Enable Reverb' : 'Disable Reverb',
+      trigger: input,
+      run: async () => {
+        let port = null;
+        if (input.checked && portInput) {
+          port = parseReverbPortInput(portInput.value);
+        }
+        await window.devmgr.sitesActions.setReverb(siteName, {
+          enabled: input.checked,
+          port: input.checked ? port : undefined,
+        });
+        await refresh();
+        await renderSiteDetail(siteName);
+        showReverbStatus(input.checked ? 'Reverb enabled.' : 'Reverb disabled.', true);
+      },
+    });
+  });
+
+  root.querySelector('#site-reverb-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const data = new FormData(e.target);
+    const enabled = root.querySelector('#site-reverb-enabled')?.checked === true;
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    void runAction({
+      key: `site-reverb-save-${siteName}`,
+      label: 'Save Reverb',
+      trigger: submitBtn,
+      run: async () => {
+        const port = parseReverbPortInput(data.get('port'));
+        await window.devmgr.sitesActions.setReverb(siteName, { enabled, port });
+        await refresh();
+        await renderSiteDetail(siteName);
+        showReverbStatus('Reverb settings saved.', true);
+      },
+    });
+  });
+
+  root.querySelector('#site-reverb-restart')?.addEventListener('click', (e) => {
+    void runActionClick(e, {
+      key: `site-reverb-restart-${siteName}`,
+      label: 'Restart Reverb',
+      run: async () => {
+        await window.devmgr.site.restartReverb(siteName);
+        await renderSiteDetail(siteName);
+        showReverbStatus('Reverb restarted.', true);
+      },
+    });
+  });
+
+  root.querySelector('#site-reverb-env')?.addEventListener('click', (e) => {
+    void runActionClick(e, {
+      key: `site-reverb-env-${siteName}`,
+      label: 'Apply Reverb .env',
+      run: async () => {
+        const result = await window.devmgr.site.applyReverbEnv(siteName);
+        const keys = result?.updatedKeys ?? [];
+        await renderSiteDetail(siteName);
+        showReverbStatus(
+          keys.length > 0 ? `Updated .env: ${keys.join(', ')}` : '.env already up to date.',
+          true,
+        );
       },
     });
   });
