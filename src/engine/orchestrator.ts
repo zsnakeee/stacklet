@@ -155,6 +155,7 @@ import {
   getNgrokStatus as readNgrokStatus,
   installNgrok as installNgrokTool,
   setNgrokAuthToken as setNgrokAuthTokenTool,
+  validateNgrokPath,
   type NgrokStatus,
 } from './ngrok';
 import {
@@ -477,7 +478,7 @@ export class Orchestrator {
   }
 
   getNgrokStatus(): NgrokStatus {
-    return readNgrokStatus();
+    return readNgrokStatus(this.config.general.ngrok_path);
   }
 
   async installNgrok(onProgress?: (message: string) => void): Promise<NgrokStatus> {
@@ -485,7 +486,15 @@ export class Orchestrator {
   }
 
   setNgrokAuthToken(token: string): NgrokStatus {
-    return setNgrokAuthTokenTool(token);
+    return setNgrokAuthTokenTool(token, this.config.general.ngrok_path);
+  }
+
+  /** Point Stacklet at a user-provided ngrok.exe (Settings → Sharing). */
+  setNgrokPath(exePath: string): NgrokStatus {
+    const valid = validateNgrokPath(exePath);
+    this.config.general.ngrok_path = valid;
+    saveConfig(this.config);
+    return readNgrokStatus(valid);
   }
 
   getCmderStatus(): CmderStatus {
@@ -1947,7 +1956,7 @@ export class Orchestrator {
   async openSiteShare(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
-    const exe = await ensureNgrokInstalled();
+    const exe = await ensureNgrokInstalled(undefined, this.config.general.ngrok_path);
     const cfg = getNgrokConfigPath();
     const sslPort = this.config.services.nginx.ssl_port || 443;
     const upstream =

@@ -32,6 +32,7 @@ const stackletAPI: StackletAPI = {
   sitesRemove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
   dialog: {
     pickDirectory: () => ipcRenderer.invoke('stacklet:dialog:directory'),
+    pickFile: (opts) => ipcRenderer.invoke('stacklet:dialog:file', opts),
   },
   service: {
     start: (name) => ipcRenderer.invoke('stacklet:service:start', name),
@@ -180,6 +181,7 @@ const stackletAPI: StackletAPI = {
     status: () => ipcRenderer.invoke('stacklet:ngrok:status'),
     install: () => ipcRenderer.invoke('stacklet:ngrok:install'),
     setAuthToken: (token) => ipcRenderer.invoke('stacklet:ngrok:setAuthToken', token),
+    setPath: (exePath) => ipcRenderer.invoke('stacklet:ngrok:setPath', exePath),
     onProgress: (callback) => {
       const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
       ipcRenderer.on('stacklet:ngrok:progress', handler);

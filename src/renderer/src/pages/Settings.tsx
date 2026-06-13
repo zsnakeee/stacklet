@@ -1025,10 +1025,34 @@ function NgrokSection() {
           ) : (
             <span className="text-xs text-warning">• no token</span>
           ))}
-        <Button size="sm" className="ml-auto" busy={busy && !!progress} disabled={busy} onClick={install}>
+        <Button
+          size="sm"
+          className="ml-auto"
+          disabled={busy}
+          onClick={async () => {
+            const file = await devmgr.dialog.pickFile({ name: 'ngrok', extensions: ['exe'] });
+            if (!file) return;
+            setBusy(true);
+            try {
+              setStatus(await devmgr.ngrok.setPath(file));
+              toast.success('Using your ngrok.exe.');
+            } catch (e) {
+              toast.error(e instanceof Error ? e.message : String(e));
+            } finally {
+              setBusy(false);
+            }
+          }}
+        >
+          Use my ngrok.exe…
+        </Button>
+        <Button size="sm" busy={busy && !!progress} disabled={busy} onClick={install}>
           {status?.installed ? 'Reinstall' : 'Install ngrok'}
         </Button>
       </div>
+      <Hint className="mt-1">
+        If antivirus blocks the download, click <strong>Use my ngrok.exe…</strong> and pick an ngrok
+        you already have (e.g. from ngrok.com).
+      </Hint>
       {progress && <p className="mt-2 text-xs text-text-muted">{progress}</p>}
       {status?.installed && (
         <div className="mt-4 flex flex-wrap items-center gap-2">
