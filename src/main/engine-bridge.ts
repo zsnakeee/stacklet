@@ -106,6 +106,9 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stacklet:ngrok:setAuthToken', async (_e, token: string) =>
     getEngine().setNgrokAuthToken(token),
   );
+  ipcMain.handle('stacklet:ngrok:setPath', async (_e, exePath: string) =>
+    getEngine().setNgrokPath(exePath),
+  );
   ipcMain.handle('stacklet:cmder:status', () => getEngine().getCmderStatus());
   ipcMain.handle('stacklet:cmder:install', async () => {
     const win = getWindow();
@@ -467,6 +470,20 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     const result = win
       ? await dialog.showOpenDialog(win, opts)
       : await dialog.showOpenDialog(opts);
+    if (result.canceled || result.filePaths.length === 0) return null;
+    return result.filePaths[0];
+  });
+  ipcMain.handle('stacklet:dialog:file', async (_e, opts?: { name?: string; extensions?: string[] }) => {
+    const win = getWindow();
+    const dialogOpts = {
+      properties: ['openFile'] as ('openFile')[],
+      filters: opts?.extensions
+        ? [{ name: opts.name ?? 'Files', extensions: opts.extensions }]
+        : undefined,
+    };
+    const result = win
+      ? await dialog.showOpenDialog(win, dialogOpts)
+      : await dialog.showOpenDialog(dialogOpts);
     if (result.canceled || result.filePaths.length === 0) return null;
     return result.filePaths[0];
   });

@@ -20,8 +20,15 @@ function findSystemNgrok(): string | null {
   }
 }
 
-/** The ngrok to run: Stacklet's bundled copy if present, else one on PATH. */
-export function resolveNgrokExe(): string | null {
+/**
+ * The ngrok to run, in priority order: a user-provided path (Settings →
+ * Sharing), Stacklet's bundled copy, then one on PATH. Lets users who already
+ * have ngrok (or whose AV blocks the download) point Stacklet at their exe.
+ */
+export function resolveNgrokExe(customPath?: string): string | null {
+  if (customPath && customPath.trim() && fs.existsSync(customPath.trim())) {
+    return customPath.trim();
+  }
   const bundled = getNgrokExe();
   if (fs.existsSync(bundled)) return bundled;
   return findSystemNgrok();
@@ -54,8 +61,8 @@ export interface NgrokStatus {
   exePath: string;
 }
 
-export function getNgrokStatus(): NgrokStatus {
-  const resolved = resolveNgrokExe();
+export function getNgrokStatus(customPath?: string): NgrokStatus {
+  const resolved = resolveNgrokExe(customPath);
   const installed = resolved !== null;
   let authConfigured = false;
   try {
@@ -89,18 +96,29 @@ export async function installNgrok(
   extractZipArchive(zipPath, dir);
 
   // The zip is normally flat (just ngrok.exe); search the tree in case the
-  // layout changes, and copy whatever we find to the canonical path.
-  if (!fs.existsSync(getNgrokExe())) {
+  // layout changes, and copy whatever we find to the canonical path. Retry a
+  // few times: some antivirus (Windows Defender) briefly locks/scans the new
+  // exe so it isn't visible the instant extraction returns.
+  for (let attempt = 0; attempt < 5 && !fs.existsSync(getNgrokExe()); attempt++) {
     const found = findExeRecursive(dir, 'ngrok.exe');
     if (found && path.resolve(found) !== path.resolve(getNgrokExe())) {
-      fs.copyFileSync(found, getNgrokExe());
+      try {
+        fs.copyFileSync(found, getNgrokExe());
+      } catch {
+        // locked by AV scan — wait and retry
+      }
+    }
+    if (!fs.existsSync(getNgrokExe())) {
+      await new Promise((r) => setTimeout(r, 400));
     }
   }
   if (!fs.existsSync(getNgrokExe())) {
     const sys = findSystemNgrok();
     if (sys) return getNgrokStatus(); // fall back to PATH ngrok (see resolveNgrokExe)
     throw new Error(
-      'Could not extract ngrok.exe. Install ngrok manually from ngrok.com and ensure it is on PATH, then try Share again.',
+      'Could not extract ngrok.exe — antivirus may have quarantined it. ' +
+        'Either allow it through your antivirus and retry, or click “Use my ngrok.exe…” in ' +
+        'Settings → Sharing to point Stacklet at an ngrok you already have.',
     );
   }
 
@@ -119,20 +137,31 @@ export async function installNgrok(
  */
 export async function ensureNgrokInstalled(
   onProgress?: (message: string) => void,
+  customPath?: string,
 ): Promise<string> {
-  const existing = resolveNgrokExe();
+  const existing = resolveNgrokExe(customPath);
   if (existing) return existing;
   await installNgrok(onProgress);
-  const resolved = resolveNgrokExe();
+  const resolved = resolveNgrokExe(customPath);
   if (!resolved) throw new Error('ngrok is not available.');
   return resolved;
 }
 
+/** Validate a user-picked ngrok.exe path (used by Settings → "Use my ngrok.exe…"). */
+export function validateNgrokPath(exePath: string): string {
+  const p = exePath.trim();
+  if (!p || !fs.existsSync(p)) throw new Error('That ngrok.exe path does not exist.');
+  if (!p.toLowerCase().endsWith('ngrok.exe')) {
+    throw new Error('Pick the ngrok.exe file.');
+  }
+  return p;
+}
+
 /** Save an ngrok auth token into the Stacklet-owned config. */
-export function setNgrokAuthToken(token: string): NgrokStatus {
+export function setNgrokAuthToken(token: string, customPath?: string): NgrokStatus {
   const trimmed = token.trim();
   if (!trimmed) throw new Error('Enter your ngrok auth token.');
-  const exe = resolveNgrokExe();
+  const exe = resolveNgrokExe(customPath);
   if (!exe) {
     throw new Error('Install ngrok first, then add your auth token.');
   }
@@ -146,7 +175,7 @@ export function setNgrokAuthToken(token: string): NgrokStatus {
       `Failed to save ngrok auth token: ${(result.stderr || result.stdout || '').trim() || 'unknown error'}`,
     );
   }
-  return getNgrokStatus();
+  return getNgrokStatus(customPath);
 }
 
 function findExeRecursive(dir: string, name: string): string | null {

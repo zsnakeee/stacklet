@@ -170,6 +170,8 @@ export interface DevConfig {
     enhanced_terminal?: boolean;
     /** Site name served at http://127.0.0.1/ (unmatched host). Empty = Stacklet dashboard. */
     default_site?: string;
+    /** Path to a user-provided ngrok.exe (overrides bundled/PATH; avoids re-downloading). */
+    ngrok_path?: string;
   };
   services: {
     nginx: NginxServiceConfig;

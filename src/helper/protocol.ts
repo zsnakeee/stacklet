@@ -14,8 +14,12 @@ import { getDataDir } from '../shared/paths';
  * v3: renamed the pipe + token path from `devmgr` to `stacklet` — gives the renamed build a
  * fresh pipe so a leftover elevated `devmgr` helper (which a non-elevated engine cannot kill)
  * can no longer answer with a stale token.
+ * v4: the helper now resolves the app's data dir via STACKLET_DATA_DIR. The pipe path is
+ * versioned (see PIPE_PATH) so a stale pre-v4 helper — which wrote helper.token to the wrong
+ * data dir and would answer with a mismatched token ("unauthorized") — is bypassed entirely:
+ * the new build listens on a new pipe the old helper never holds.
  */
-export const HELPER_PROTOCOL_VERSION = 3;
+export const HELPER_PROTOCOL_VERSION = 4;
 
 /** Operations the privileged helper is permitted to execute. */
 export type AllowedOp = 'hosts:add' | 'hosts:remove' | 'hosts:sync' | 'cert:install' | 'ping';
@@ -53,8 +57,12 @@ export interface HelperResponse {
   error?: string;
 }
 
-/** Named pipe path used by both server and client. */
-export const PIPE_PATH = BRAND.helperPipe;
+/**
+ * Named pipe path used by both server and client, suffixed with the protocol
+ * version so each breaking helper revision gets a fresh pipe a stale elevated
+ * helper from an older build can't be holding.
+ */
+export const PIPE_PATH = `${BRAND.helperPipe}-v${HELPER_PROTOCOL_VERSION}`;
 
 /**
  * The token file location: <data-dir>\helper.token (alongside helper.pid).

@@ -75,6 +75,7 @@ export interface StackletAPI {
   sitesRemove: (name: string) => Promise<unknown>;
   dialog: {
     pickDirectory: () => Promise<string | null>;
+    pickFile: (opts?: { name?: string; extensions?: string[] }) => Promise<string | null>;
   };
   service: {
     start: (name: string) => Promise<unknown>;
@@ -262,6 +263,7 @@ export interface StackletAPI {
     status: () => Promise<NgrokInfo>;
     install: () => Promise<NgrokInfo>;
     setAuthToken: (token: string) => Promise<NgrokInfo>;
+    setPath: (exePath: string) => Promise<NgrokInfo>;
     onProgress: (callback: (message: string) => void) => () => void;
   };
   cmder: {
