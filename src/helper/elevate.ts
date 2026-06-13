@@ -154,6 +154,11 @@ function writeLauncherCmd(
   if (runtime.useElectronRunAsNode) {
     lines.push('set ELECTRON_RUN_AS_NODE=1');
   }
+  // Pin the data dir so the ELEVATED helper resolves the same location as the
+  // app. Without this it reads the admin account's %LOCALAPPDATA% (or the
+  // install default) and would write helper.token to the wrong folder when the
+  // user has relocated their data dir (e.g. to F:\ProgramData\stacklet).
+  lines.push(`set "${envVar('DATA_DIR')}=${getDataDir()}"`);
   lines.push(`"${runtime.executable}" "${serverPath}" 1>>"${logPath}" 2>&1`);
   fs.writeFileSync(launcherPath, lines.join('\r\n') + '\r\n', 'utf8');
   return launcherPath;
@@ -167,6 +172,8 @@ function spawnHelperDetached(runtime: HelperRuntime, serverPath: string): void {
   if (runtime.useElectronRunAsNode) {
     env['ELECTRON_RUN_AS_NODE'] = '1';
   }
+  // Ensure the helper resolves the app's data dir (see writeLauncherCmd note).
+  env[envVar('DATA_DIR')] = getDataDir();
 
   const child = spawn(runtime.executable, [serverPath], {
     detached: true,

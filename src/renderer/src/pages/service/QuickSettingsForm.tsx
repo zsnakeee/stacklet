@@ -1,5 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { Button, Empty, Field, Input, Select, Toggle } from '@/components/ui/primitives';
+import { Button, Empty, Field, Input, Toggle } from '@/components/ui/primitives';
+import { Dropdown } from '@/components/ui/Dropdown';
 import { useAction } from '@/lib/action';
 import type { QuickField } from '@/lib/constants';
 
@@ -103,13 +104,16 @@ export function QuickSettingsForm({
           if (f.type === 'select') {
             return (
               <Field key={f.key} label={f.label} inline>
-                <Select value={String(values[f.key] ?? '')} onChange={(e) => set(f.key, e.target.value)}>
-                  {(f.options ?? []).map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </Select>
+                <Dropdown
+                  className="min-w-44"
+                  ariaLabel={f.label}
+                  value={String(values[f.key] ?? '')}
+                  options={(f.options ?? []).map((o) => ({
+                    value: String(o.value),
+                    label: o.label,
+                  }))}
+                  onChange={(v) => set(f.key, v)}
+                />
               </Field>
             );
           }

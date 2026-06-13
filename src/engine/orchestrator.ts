@@ -617,7 +617,12 @@ export class Orchestrator {
     const redis = this.config.services.redis;
     if (redis.binary && fs.existsSync(redis.binary)) {
       const installRoot = path.dirname(path.resolve(redis.binary));
-      const confPath = ensureRedisConfig(installRoot, redis.port);
+      const confPath = ensureRedisConfig(installRoot, redis.port, {
+        password: redis.password,
+        maxmemory: redis.maxmemory,
+        maxmemoryPolicy: redis.maxmemory_policy,
+        appendonly: redis.appendonly,
+      });
       if (redis.config !== confPath) {
         this.config.services.redis.config = confPath;
         saveConfig(this.config);
@@ -1583,6 +1588,59 @@ export class Orchestrator {
     await this.startService('nginx');
   }
 
+  /** Redis config Stacklet manages (no ACL users on the bundled Redis 5 build). */
+  getRedisSettings(): {
+    port: number;
+    password: string;
+    maxmemory: string;
+    maxmemoryPolicy: string;
+    appendonly: boolean;
+    configPath: string;
+    aclSupported: boolean;
+  } {
+    const r = this.config.services.redis;
+    return {
+      port: r.port,
+      password: r.password ?? '',
+      maxmemory: r.maxmemory ?? '',
+      maxmemoryPolicy: r.maxmemory_policy ?? '',
+      appendonly: r.appendonly === true,
+      configPath: r.config || '',
+      // ACL users need Redis ≥ 6; the bundled Windows build (tporadowski) is 5.x.
+      aclSupported: false,
+    };
+  }
+
+  async saveRedisSettings(patch: {
+    port?: number;
+    password?: string;
+    maxmemory?: string;
+    maxmemoryPolicy?: string;
+    appendonly?: boolean;
+  }): Promise<void> {
+    const r = this.config.services.redis;
+    if (patch.port !== undefined && Number.isFinite(patch.port)) r.port = patch.port;
+    if (patch.password !== undefined) r.password = patch.password;
+    if (patch.maxmemory !== undefined) r.maxmemory = patch.maxmemory;
+    if (patch.maxmemoryPolicy !== undefined) r.maxmemory_policy = patch.maxmemoryPolicy;
+    if (patch.appendonly !== undefined) r.appendonly = patch.appendonly;
+    saveConfig(this.config);
+    this.services = new ServiceManager(this.config);
+    await this.apply();
+    await this.restartRedis();
+  }
+
+  async restartRedis(): Promise<void> {
+    await this.stopService('redis');
+    await this.startService('redis');
+  }
+
+  openRedisConf(): void {
+    const conf = this.config.services.redis.config;
+    if (!conf) throw new Error('redis.conf not generated yet — install Redis and click Apply.');
+    openNginxConfInEditor(conf);
+  }
+
   private markPhpAutoRestart(enabled: boolean): void {
     this.phpAutoRestart = enabled;
     if (enabled) {
@@ -1880,21 +1938,25 @@ export class Orchestrator {
   }
 
   /**
-   * Share a site publicly via ngrok (host-header rewrite to the .test vhost).
-   * Auto-installs ngrok into the data dir on first use, then opens a terminal
-   * running the local ngrok with Stacklet's own config (holding the auth token).
-   * Still requires the user to have added an auth token (Settings → Sharing).
+   * Share a site publicly via ngrok. Forwards to the site's local HTTPS vhost
+   * (so the public tunnel is https → https and the app sees an HTTPS request,
+   * avoiding mixed-content from absolute http asset URLs). Auto-installs ngrok
+   * on first use, then opens a terminal running it with Stacklet's own config
+   * (holding the auth token added in Settings → Sharing).
    */
   async openSiteShare(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
     const exe = await ensureNgrokInstalled();
     const cfg = getNgrokConfigPath();
+    const sslPort = this.config.services.nginx.ssl_port || 443;
+    const upstream =
+      sslPort === 443 ? `https://${site.hostname}` : `https://${site.hostname}:${sslPort}`;
     await openTerminalCommand({
       key: `share-${site.name}`,
       cwd: site.root,
       pathDirs: [],
-      command: `"${exe}" http --host-header=rewrite --config "${cfg}" ${site.hostname}`,
+      command: `"${exe}" http --host-header=rewrite --config "${cfg}" ${upstream}`,
       title: `Share — ${site.hostname}`,
     });
   }

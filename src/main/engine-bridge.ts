@@ -295,6 +295,30 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     await getEngine().restartNginx();
     return getEngine().status();
   });
+  ipcMain.handle('stacklet:redis:settings', () => getEngine().getRedisSettings());
+  ipcMain.handle(
+    'stacklet:redis:saveSettings',
+    async (
+      _e,
+      patch: {
+        port?: number;
+        password?: string;
+        maxmemory?: string;
+        maxmemoryPolicy?: string;
+        appendonly?: boolean;
+      },
+    ) => {
+      await getEngine().saveRedisSettings(patch);
+      return getEngine().getRedisSettings();
+    },
+  );
+  ipcMain.handle('stacklet:redis:openConf', () => {
+    getEngine().openRedisConf();
+  });
+  ipcMain.handle('stacklet:redis:restart', async () => {
+    await getEngine().restartRedis();
+    return getEngine().status();
+  });
   ipcMain.handle('stacklet:php:restart', async () => {
     await getEngine().restartPhp();
     return getEngine().status();

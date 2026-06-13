@@ -120,6 +120,26 @@ export interface StackletAPI {
     openConf: (version?: string) => Promise<void>;
     restart: () => Promise<unknown>;
   };
+  redis: {
+    getSettings: () => Promise<{
+      port: number;
+      password: string;
+      maxmemory: string;
+      maxmemoryPolicy: string;
+      appendonly: boolean;
+      configPath: string;
+      aclSupported: boolean;
+    }>;
+    saveSettings: (patch: {
+      port?: number;
+      password?: string;
+      maxmemory?: string;
+      maxmemoryPolicy?: string;
+      appendonly?: boolean;
+    }) => Promise<unknown>;
+    openConf: () => Promise<void>;
+    restart: () => Promise<unknown>;
+  };
   services: {
     catalog: () => Promise<unknown>;
     refresh: () => Promise<unknown>;

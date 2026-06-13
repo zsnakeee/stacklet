@@ -52,11 +52,31 @@ export type UpdateStatus =
 let lastStatus: UpdateStatus = { state: 'idle' };
 let wired = false;
 
+/** GitHub returns release notes as HTML; render them as readable plain text. */
+function htmlToText(html: string): string {
+  return html
+    .replace(/<\s*(br|\/p|\/h\d|\/li|\/div)\s*\/?>/gi, '\n')
+    .replace(/<\s*li[^>]*>/gi, '• ')
+    .replace(/<\s*h\d[^>]*>/gi, '\n')
+    .replace(/<[^>]+>/g, '') // strip remaining tags
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&rarr;/g, '→')
+    .replace(/[ \t]+\n/g, '\n')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
+
 function notesToText(notes: unknown): string | undefined {
-  if (typeof notes === 'string') return notes;
+  if (typeof notes === 'string') return htmlToText(notes);
   if (Array.isArray(notes)) {
     return notes
       .map((n) => (n && typeof n === 'object' && 'note' in n ? String(n.note) : String(n)))
+      .map(htmlToText)
       .join('\n\n');
   }
   return undefined;
@@ -162,9 +182,10 @@ export function registerUpdaterIpc(getWindow: () => BrowserWindow | null): void 
   ipcMain.handle('stacklet:update:install', () => {
     if (!app.isPackaged) return;
     pinDataDirBeforeInstall();
-    // Quit and install now. isSilent=false shows the NSIS UI; isForceRunAfter
-    // relaunches Stacklet once the update is applied.
-    setImmediate(() => autoUpdater.quitAndInstall(false, true));
+    // Silent install into the SAME directory, then relaunch. isSilent=true runs
+    // the NSIS updater with no UI/prompts (it reuses the existing install path);
+    // isForceRunAfter=true reopens Stacklet when it finishes.
+    setImmediate(() => autoUpdater.quitAndInstall(true, true));
   });
 }
 

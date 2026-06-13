@@ -8,9 +8,9 @@ import {
   Hint,
   Input,
   Section,
-  Select,
   Toggle,
 } from '@/components/ui/primitives';
+import { Dropdown } from '@/components/ui/Dropdown';
 import { LanguageMenu } from '@/components/shell/LanguageMenu';
 import { SETTINGS_SERVICES } from '@/lib/constants';
 import { useAction } from '@/lib/action';
@@ -606,28 +606,26 @@ export function Settings() {
 
         <div className="mt-5 flex flex-col gap-2 border-t border-border pt-4">
           <Field label="Default site for http://127.0.0.1/">
-            <Select
-              className="w-full max-w-sm"
+            <Dropdown
+              className="max-w-sm"
+              ariaLabel="Default site"
               value={defaultSite}
-              onChange={(e) =>
+              options={[
+                { value: '', label: 'Stacklet dashboard (list all sites)' },
+                ...siteNames.map((n) => ({ value: n, label: n })),
+              ]}
+              onChange={(v) =>
                 runAction({
                   key: 'set-default-site',
                   label: 'Update default site',
                   global: true,
                   run: async () => {
-                    await devmgr.settings.save({ general: { default_site: e.target.value } });
+                    await devmgr.settings.save({ general: { default_site: v } });
                     await refresh();
                   },
                 })
               }
-            >
-              <option value="">Stacklet dashboard (list all sites)</option>
-              {siteNames.map((n) => (
-                <option key={n} value={n}>
-                  {n}
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
           <Hint>
             What loads at <code>http://127.0.0.1/</code> and any hostname no site claims. Choose a

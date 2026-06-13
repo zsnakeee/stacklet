@@ -1,9 +1,31 @@
-import { spawnSync } from 'child_process';
+import { execFileSync, spawnSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 import { downloadFile } from '../bundled/download';
 import { extractZipArchive } from '../bundled/extract-zip';
 import { getDataDir, getServicesCacheDir } from '../shared/paths';
+
+/** A system-installed ngrok on PATH (so we can use it instead of downloading). */
+function findSystemNgrok(): string | null {
+  if (process.platform !== 'win32') return null;
+  try {
+    const out = execFileSync('where.exe', ['ngrok'], { encoding: 'utf8' });
+    const line = out
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .find((l) => l.toLowerCase().endsWith('ngrok.exe'));
+    return line && fs.existsSync(line) ? line : null;
+  } catch {
+    return null;
+  }
+}
+
+/** The ngrok to run: Stacklet's bundled copy if present, else one on PATH. */
+export function resolveNgrokExe(): string | null {
+  const bundled = getNgrokExe();
+  if (fs.existsSync(bundled)) return bundled;
+  return findSystemNgrok();
+}
 
 /**
  * ngrok — public sharing for local sites. Auto-installed into the Stacklet data
@@ -33,7 +55,8 @@ export interface NgrokStatus {
 }
 
 export function getNgrokStatus(): NgrokStatus {
-  const installed = fs.existsSync(getNgrokExe());
+  const resolved = resolveNgrokExe();
+  const installed = resolved !== null;
   let authConfigured = false;
   try {
     const cfg = getNgrokConfigPath();
@@ -43,7 +66,7 @@ export function getNgrokStatus(): NgrokStatus {
   } catch {
     // ignore — treat as not configured
   }
-  return { installed, authConfigured, dir: getNgrokDir(), exePath: getNgrokExe() };
+  return { installed, authConfigured, dir: getNgrokDir(), exePath: resolved ?? getNgrokExe() };
 }
 
 /** Download + extract the ngrok CLI into the data dir. Idempotent. */
@@ -57,18 +80,28 @@ export async function installNgrok(
   onProgress?.('Downloading ngrok…');
   await downloadFile(NGROK_URL, zipPath);
 
+  const downloaded = fs.existsSync(zipPath) ? fs.statSync(zipPath).size : 0;
+  if (downloaded < 1024) {
+    throw new Error('ngrok download failed (empty file). Check your internet connection.');
+  }
+
   onProgress?.('Extracting ngrok…');
   extractZipArchive(zipPath, dir);
 
-  // The zip is flat (just ngrok.exe), but guard against a nested folder layout.
+  // The zip is normally flat (just ngrok.exe); search the tree in case the
+  // layout changes, and copy whatever we find to the canonical path.
   if (!fs.existsSync(getNgrokExe())) {
     const found = findExeRecursive(dir, 'ngrok.exe');
-    if (found && found !== getNgrokExe()) {
+    if (found && path.resolve(found) !== path.resolve(getNgrokExe())) {
       fs.copyFileSync(found, getNgrokExe());
     }
   }
   if (!fs.existsSync(getNgrokExe())) {
-    throw new Error('ngrok.exe not found after extraction.');
+    const sys = findSystemNgrok();
+    if (sys) return getNgrokStatus(); // fall back to PATH ngrok (see resolveNgrokExe)
+    throw new Error(
+      'Could not extract ngrok.exe. Install ngrok manually from ngrok.com and ensure it is on PATH, then try Share again.',
+    );
   }
 
   try {
@@ -80,25 +113,31 @@ export async function installNgrok(
   return getNgrokStatus();
 }
 
-/** Make sure ngrok is present, downloading it on first use. Returns the exe path. */
+/**
+ * Make sure ngrok is runnable. Prefers an existing copy (bundled or on PATH);
+ * only downloads when none is found. Returns the exe path to run.
+ */
 export async function ensureNgrokInstalled(
   onProgress?: (message: string) => void,
 ): Promise<string> {
-  if (!fs.existsSync(getNgrokExe())) {
-    await installNgrok(onProgress);
-  }
-  return getNgrokExe();
+  const existing = resolveNgrokExe();
+  if (existing) return existing;
+  await installNgrok(onProgress);
+  const resolved = resolveNgrokExe();
+  if (!resolved) throw new Error('ngrok is not available.');
+  return resolved;
 }
 
 /** Save an ngrok auth token into the Stacklet-owned config. */
 export function setNgrokAuthToken(token: string): NgrokStatus {
   const trimmed = token.trim();
   if (!trimmed) throw new Error('Enter your ngrok auth token.');
-  if (!fs.existsSync(getNgrokExe())) {
+  const exe = resolveNgrokExe();
+  if (!exe) {
     throw new Error('Install ngrok first, then add your auth token.');
   }
   const result = spawnSync(
-    getNgrokExe(),
+    exe,
     ['config', 'add-authtoken', trimmed, '--config', getNgrokConfigPath()],
     { encoding: 'utf8', windowsHide: true },
   );
