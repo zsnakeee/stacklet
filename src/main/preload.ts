@@ -167,6 +167,25 @@ const stackletAPI: StackletAPI = {
     status: () => ipcRenderer.invoke('stacklet:composer:status'),
     install: () => ipcRenderer.invoke('stacklet:composer:install'),
   },
+  ngrok: {
+    status: () => ipcRenderer.invoke('stacklet:ngrok:status'),
+    install: () => ipcRenderer.invoke('stacklet:ngrok:install'),
+    setAuthToken: (token) => ipcRenderer.invoke('stacklet:ngrok:setAuthToken', token),
+    onProgress: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
+      ipcRenderer.on('stacklet:ngrok:progress', handler);
+      return () => ipcRenderer.removeListener('stacklet:ngrok:progress', handler);
+    },
+  },
+  cmder: {
+    status: () => ipcRenderer.invoke('stacklet:cmder:status'),
+    install: () => ipcRenderer.invoke('stacklet:cmder:install'),
+    onProgress: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
+      ipcRenderer.on('stacklet:cmder:progress', handler);
+      return () => ipcRenderer.removeListener('stacklet:cmder:progress', handler);
+    },
+  },
   ssl: {
     status: () => ipcRenderer.invoke('stacklet:ssl:status'),
     trust: () => ipcRenderer.invoke('stacklet:ssl:trust'),

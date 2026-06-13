@@ -59,6 +59,7 @@ export interface AppConfig {
     autostart?: boolean;
     launch_on_login?: boolean;
     xdebug?: boolean;
+    enhanced_terminal?: boolean;
   };
   services?: Record<string, { enabled?: boolean }>;
 }

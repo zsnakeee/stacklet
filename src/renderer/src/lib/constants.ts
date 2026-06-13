@@ -21,6 +21,9 @@ export const RUNTIME_ROWS = [
 /** Web inbox port for Mailpit (matches config default mailpit.ui_port). */
 export const MAILPIT_UI_PORT = 8025;
 
+/** SMTP port apps send mail to (matches config default mailpit.port). */
+export const MAILPIT_SMTP_PORT = 1025;
+
 export const BUNDLED_RUNTIME: Record<string, string> = Object.fromEntries(
   RUNTIME_ROWS.map((r) => [r.bundledId, r.runtime]),
 );

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { UpdateStatus } from '@shared/ipc';
+import type { CmderInfo, NgrokInfo, UpdateStatus } from '@shared/ipc';
 import {
   Button,
   Empty,
@@ -560,6 +560,10 @@ export function Settings() {
 
       <NodeNvmSection />
 
+      <TerminalSection />
+
+      <NgrokSection />
+
       <Section title="Web server">
         <Hint>
           Choose which web server serves your sites. Install Apache from Services first; switching
@@ -903,6 +907,198 @@ function UpdatesSection() {
         )}
       </div>
       <div className="mt-3">{renderStatus()}</div>
+    </Section>
+  );
+}
+
+/** Public sharing via ngrok: auto-install + auth token. */
+function NgrokSection() {
+  const toast = useToast();
+  const [status, setStatus] = useState<NgrokInfo | null>(null);
+  const [token, setToken] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setStatus(await devmgr.ngrok.status());
+      } catch {
+        // ignore
+      }
+    })();
+    const off = devmgr.ngrok.onProgress((m) => setProgress(m));
+    return off;
+  }, []);
+
+  const install = async () => {
+    setBusy(true);
+    setProgress('');
+    try {
+      setStatus(await devmgr.ngrok.install());
+      toast.success('ngrok installed.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      setProgress('');
+    }
+  };
+
+  const saveToken = async () => {
+    setBusy(true);
+    try {
+      setStatus(await devmgr.ngrok.setAuthToken(token));
+      setToken('');
+      toast.success('ngrok auth token saved.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title="Sharing (ngrok)">
+      <Hint>
+        “Share online” on a site exposes it publicly through ngrok. Stacklet installs ngrok for you;
+        add a free auth token from{' '}
+        <button
+          type="button"
+          className="text-primary underline"
+          onClick={() => devmgr.shell.openExternal('https://dashboard.ngrok.com/get-started/your-authtoken')}
+        >
+          your ngrok dashboard
+        </button>{' '}
+        so it can connect.
+      </Hint>
+      <div className="mt-3 flex items-center gap-3">
+        <span className="text-sm text-foreground">ngrok</span>
+        {status === null ? (
+          <span className="text-xs text-text-muted">checking…</span>
+        ) : status.installed ? (
+          <span className="text-xs text-success">Installed</span>
+        ) : (
+          <span className="text-xs text-text-muted">Not installed</span>
+        )}
+        {status?.installed &&
+          (status.authConfigured ? (
+            <span className="text-xs text-success">• token set</span>
+          ) : (
+            <span className="text-xs text-warning">• no token</span>
+          ))}
+        <Button size="sm" className="ml-auto" busy={busy && !!progress} disabled={busy} onClick={install}>
+          {status?.installed ? 'Reinstall' : 'Install ngrok'}
+        </Button>
+      </div>
+      {progress && <p className="mt-2 text-xs text-text-muted">{progress}</p>}
+      {status?.installed && (
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <Input
+            className="max-w-80"
+            type="password"
+            value={token}
+            placeholder="ngrok auth token"
+            onChange={(e) => setToken(e.target.value)}
+          />
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy || !token.trim()}
+            onClick={saveToken}
+          >
+            Save token
+          </Button>
+        </div>
+      )}
+    </Section>
+  );
+}
+
+/** Terminal experience: auto-install Cmder/Clink for rich tab completion. */
+function TerminalSection() {
+  const toast = useToast();
+  const { config, refresh } = useStore();
+  const [status, setStatus] = useState<CmderInfo | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
+
+  const enabled = config?.general?.enhanced_terminal !== false;
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setStatus(await devmgr.cmder.status());
+      } catch {
+        // ignore
+      }
+    })();
+    const off = devmgr.cmder.onProgress((m) => setProgress(m));
+    return off;
+  }, []);
+
+  const install = async () => {
+    setBusy(true);
+    setProgress('');
+    try {
+      setStatus(await devmgr.cmder.install());
+      toast.success('Cmder + Clink installed.');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      setProgress('');
+    }
+  };
+
+  const toggle = async (on: boolean) => {
+    setBusy(true);
+    try {
+      await devmgr.settings.save({ general: { enhanced_terminal: on } });
+      await refresh();
+      // Turning it on auto-installs Cmder if it isn't there yet.
+      if (on && !(status?.installed)) {
+        setProgress('');
+        setStatus(await devmgr.cmder.install());
+        toast.success('Cmder + Clink installed.');
+      }
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+      setProgress('');
+    }
+  };
+
+  return (
+    <Section title="Terminal">
+      <Hint>
+        Stacklet can run its terminals (Open terminal, Tinker) through Cmder/Clink for rich tab
+        completion, history search, and a Git-aware prompt — the same as{' '}
+        <code>cmd /k vendor\init.bat</code>. Installed locally; no internet needed afterward.
+      </Hint>
+      <div className="mt-3 flex flex-col gap-3">
+        <Toggle
+          label="Use Cmder/Clink autocomplete in Stacklet terminals"
+          checked={enabled}
+          disabled={busy}
+          onChange={(c) => void toggle(c)}
+        />
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <span className="text-sm text-foreground">Cmder + Clink</span>
+        {status === null ? (
+          <span className="text-xs text-text-muted">checking…</span>
+        ) : status.installed ? (
+          <span className="text-xs text-success">Installed</span>
+        ) : (
+          <span className="text-xs text-text-muted">Not installed</span>
+        )}
+        <Button size="sm" className="ml-auto" disabled={busy} onClick={install}>
+          {status?.installed ? 'Reinstall' : 'Install Cmder'}
+        </Button>
+      </div>
+      {progress && <p className="mt-2 text-xs text-text-muted">{progress}</p>}
     </Section>
   );
 }

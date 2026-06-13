@@ -210,7 +210,7 @@ export function SiteDetail() {
           </Button>
           <Button
             size="sm"
-            title="Share this site publicly via ngrok (requires ngrok + auth token)"
+            title="Share this site publicly via ngrok (auto-installed; add an auth token in Settings → Sharing)"
             onClick={() =>
               runAction({
                 key: `share-${name}`,

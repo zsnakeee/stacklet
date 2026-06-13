@@ -158,6 +158,8 @@ export interface DevConfig {
     launch_on_login?: boolean;
     /** Route Xdebug-triggered requests to a dedicated Xdebug-enabled php-cgi. */
     xdebug?: boolean;
+    /** Use Cmder/Clink (rich tab completion) in Stacklet-opened terminals (default true). */
+    enhanced_terminal?: boolean;
   };
   services: {
     nginx: NginxServiceConfig;
