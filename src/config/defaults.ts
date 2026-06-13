@@ -9,8 +9,14 @@ export function defaultConfig(): DevConfig {
     general: {
       web_server: 'nginx',
       park_path: '',
+      tld: 'test',
       path_in_env: true,
       path_env_selected: [],
+      start_minimized: false,
+      start_maximized: false,
+      autostart: true,
+      launch_on_login: false,
+      xdebug: false,
     },
     services: {
       nginx: {
@@ -21,6 +27,14 @@ export function defaultConfig(): DevConfig {
         port: 80,
         ssl_port: 443,
         options: defaultNginxOptions(),
+      },
+      apache: {
+        enabled: true,
+        binary: '',
+        config: '',
+        server_root: '',
+        port: 80,
+        ssl_port: 443,
       },
       php: {
         enabled: true,
@@ -56,6 +70,22 @@ export function defaultConfig(): DevConfig {
         path: '',
         hostname: 'phpmyadmin.test',
         options: defaultPhpMyAdminOptions(3306),
+      },
+      mailpit: {
+        enabled: true,
+        binary: '',
+        port: 1025,
+        ui_port: 8025,
+      },
+      mongodb: {
+        enabled: true,
+        binary: '',
+        port: 27017,
+        data_dir: '',
+      },
+      python: {
+        enabled: true,
+        binary: '',
       },
     },
   };

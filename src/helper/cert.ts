@@ -6,7 +6,10 @@ function runCertutilAddStore(
   storeArgs: string[],
 ): { installed: boolean; certPath: string } {
   try {
-    execFileSync('certutil', [...storeArgs, '-f', certPath], {
+    // `-f` (force/overwrite) is a global option and MUST precede the -addstore
+    // verb. Placing it after the store name made certutil read it as the input
+    // file positional → 0x80070057 ERROR_INVALID_PARAMETER.
+    execFileSync('certutil', ['-f', ...storeArgs, certPath], {
       encoding: 'utf8',
       stdio: ['ignore', 'pipe', 'pipe'],
     });

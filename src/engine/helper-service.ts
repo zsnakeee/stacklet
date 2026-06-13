@@ -119,32 +119,48 @@ export class HelperService {
     });
   }
 
+  /**
+   * Run an op against the helper. If it fails with `unauthorized` — a stale
+   * elevated helper answering with an old token — tear the helper down and
+   * relaunch a fresh one once, then retry. Self-heals without dead-ending the
+   * caller (e.g. site creation) on a one-off token mismatch.
+   */
+  private async withClient<T>(fn: (client: HelperClient) => Promise<T>): Promise<T> {
+    const client = await this.ensureReady();
+    try {
+      return await fn(client);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      if (!message.includes('unauthorized')) throw err;
+      this.disconnect();
+      stopExistingHelper();
+      const fresh = await this.ensureReady();
+      return fn(fresh);
+    }
+  }
+
   async hostsAdd(hostname: string, ip: string = '127.0.0.1'): Promise<void> {
-    return this.runExclusive(async () => {
-      const client = await this.ensureReady();
-      await client.hostsAdd(hostname, ip);
-    });
+    return this.runExclusive(() =>
+      this.withClient((client) => client.hostsAdd(hostname, ip)),
+    );
   }
 
   async hostsRemove(hostname: string): Promise<void> {
-    return this.runExclusive(async () => {
-      const client = await this.ensureReady();
-      await client.hostsRemove(hostname);
-    });
+    return this.runExclusive(() =>
+      this.withClient((client) => client.hostsRemove(hostname)),
+    );
   }
 
   async hostsSync(hostnames: string[], ip: string = '127.0.0.1'): Promise<void> {
-    return this.runExclusive(async () => {
-      const client = await this.ensureReady();
-      await client.hostsSync(hostnames, ip);
-    });
+    return this.runExclusive(() =>
+      this.withClient((client) => client.hostsSync(hostnames, ip)),
+    );
   }
 
   async certInstall(certPath: string): Promise<void> {
-    return this.runExclusive(async () => {
-      const client = await this.ensureReady();
-      await client.certInstall(certPath);
-    });
+    return this.runExclusive(() =>
+      this.withClient((client) => client.certInstall(certPath)),
+    );
   }
 
   disconnect(): void {

@@ -1,6 +1,6 @@
-﻿export type WebServer = 'nginx';
+﻿export type WebServer = 'nginx' | 'apache';
 
-/** Nginx http / fastcgi tuning (devmgr-http.conf + vhost generation). */
+/** Nginx http / fastcgi tuning (stacklet-http.conf + vhost generation). */
 export interface NginxOptions {
   client_max_body_size: string;
   keepalive_timeout: number;
@@ -20,6 +20,18 @@ export interface NginxServiceConfig {
   port: number;
   ssl_port: number;
   options?: Partial<NginxOptions>;
+  installed_version?: string;
+}
+
+export interface ApacheServiceConfig {
+  enabled: boolean;
+  binary: string;
+  /** httpd.conf path. */
+  config: string;
+  /** ServerRoot (the Apache install dir). */
+  server_root: string;
+  port: number;
+  ssl_port: number;
   installed_version?: string;
 }
 
@@ -99,24 +111,66 @@ export interface PhpMyAdminServiceConfig {
   installed_version?: string;
 }
 
+export interface MailpitServiceConfig {
+  enabled: boolean;
+  binary: string;
+  /** SMTP port apps send to (MAIL_PORT). */
+  port: number;
+  /** Web inbox port. */
+  ui_port: number;
+  installed_version?: string;
+}
+
+export interface MongodbServiceConfig {
+  enabled: boolean;
+  binary: string;
+  port: number;
+  data_dir: string;
+  installed_version?: string;
+}
+
+export interface PythonServiceConfig {
+  enabled: boolean;
+  binary: string;
+  installed_version?: string;
+}
+
 export interface DevConfig {
   version: number;
   general: {
     web_server: WebServer;
     park_path: string;
+    /** Local TLD for site hostnames (default "test"). */
+    tld?: string;
+    /** Custom parent folder for new projects (default <data>\projects). */
+    projects_dir?: string;
     /** @deprecated Use path_env_selected. If true and path_env_selected unset, all candidates are selected. */
     path_in_env?: boolean;
     /** IDs from listEnvPathCandidates to prepend to the Windows user PATH. */
     path_env_selected?: string[];
+    /** Start the app hidden to the tray. */
+    start_minimized?: boolean;
+    /** Start the window maximized. */
+    start_maximized?: boolean;
+    /** Auto-start enabled services when the app launches (default true). */
+    autostart?: boolean;
+    /** Launch Stacklet automatically at Windows login. */
+    launch_on_login?: boolean;
+    /** Route Xdebug-triggered requests to a dedicated Xdebug-enabled php-cgi. */
+    xdebug?: boolean;
   };
   services: {
     nginx: NginxServiceConfig;
+    apache: ApacheServiceConfig;
     php: PhpServiceConfig;
     mysql: MysqlServiceConfig;
     postgres: PostgresServiceConfig;
     nodejs: NodejsServiceConfig;
     redis: RedisServiceConfig;
     phpmyadmin: PhpMyAdminServiceConfig;
+    mailpit: MailpitServiceConfig;
+    mongodb: MongodbServiceConfig;
+    python: PythonServiceConfig;
   };
 }
 
@@ -139,4 +193,6 @@ export interface Site {
   /** Extra server_names beyond the primary hostname. */
   aliases?: string[];
   reverb?: SiteReverbConfig;
+  /** Isolated PHP version for this site (empty/undefined = use the default). */
+  php_version?: string;
 }

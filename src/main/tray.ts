@@ -1,15 +1,26 @@
-﻿import { app, Menu, Tray, nativeImage, BrowserWindow } from 'electron';
+﻿import path from 'path';
+import { app, Menu, Tray, nativeImage, BrowserWindow } from 'electron';
 import { BRAND } from '../shared/brand';
 import { getEngine } from './engine-bridge';
 
 let tray: Tray | null = null;
 
-export function createTray(getWindow: () => BrowserWindow | null): Tray {
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
-  );
+function trayIcon(): Electron.NativeImage {
+  const iconPath = app.isPackaged
+    ? path.join(process.resourcesPath, 'icon.png')
+    : path.join(app.getAppPath(), 'build', 'icon.png');
+  const img = nativeImage.createFromPath(iconPath);
+  if (img.isEmpty()) {
+    // Fallback: transparent pixel if the asset is missing.
+    return nativeImage.createFromDataURL(
+      'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==',
+    );
+  }
+  return img.resize({ width: 16, height: 16 });
+}
 
-  tray = new Tray(icon);
+export function createTray(getWindow: () => BrowserWindow | null): Tray {
+  tray = new Tray(trayIcon());
   tray.setToolTip(BRAND.name);
 
   const rebuildMenu = async (): Promise<void> => {

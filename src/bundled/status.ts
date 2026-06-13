@@ -6,14 +6,17 @@ import type { BundledServiceId, BundledServiceStatus } from './types';
 
 const RUNTIME_MAP: Record<string, string> = {
   nginx: 'nginx',
+  apache: 'apache',
   php: 'php-fpm',
   mysql: 'mysql',
   postgres: 'postgres',
   redis: 'redis',
   nodejs: 'nodejs',
+  mailpit: 'mailpit',
+  mongodb: 'mongodb',
 };
 
-const NO_RUNTIME = new Set<BundledServiceId>(['nodejs', 'phpmyadmin']);
+const NO_RUNTIME = new Set<BundledServiceId>(['nodejs', 'phpmyadmin', 'python']);
 
 function resolveRuntimeState(
   entryId: BundledServiceId,

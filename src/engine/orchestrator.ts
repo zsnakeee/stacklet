@@ -32,6 +32,7 @@ import type {
   NginxOptions,
   PhpMyAdminOptions,
   Site,
+  WebServer,
 } from '../config/types';
 import { HelperService } from './helper-service';
 import { LogService } from './logs/log-service';
@@ -59,7 +60,9 @@ import {
   resolveLaravelLogId,
   runLaravelArtisan,
 } from './site-commands';
-import { ServiceManager } from './services';
+import { ManagedProcess, ServiceManager } from './services';
+import { buildPhpCgiSpawn, resolvePhpCgiBinary } from './services/php-cgi';
+import { phpPortForVersion, requiredIsolatedVersions } from './php-isolation';
 import {
   disableBrokenPhpExtensions,
   enableRecommendedExtensions,
@@ -98,7 +101,7 @@ import {
   phpMyAdminConfigPath,
   resolvePhpMyAdminRoot,
 } from '../bundled/phpmyadmin-configure';
-import { getServicePortLabel } from './service-ports';
+import { getServicePortLabel, PHP_XDEBUG_PORT } from './service-ports';
 import { createLaravelProject, cloneGitProject, resolveExistingProjectPath } from './site-actions';
 import {
   addRegisteredSite,
@@ -110,6 +113,7 @@ import type { ReverbPatch } from './reverb-ports';
 import { updateRegisteredSite } from './site-config';
 import { SiteReverbManager } from './site-processes/manager';
 import { detectReverbInstalled } from './site-processes/reverb';
+import { getSiteTld, setSiteTld } from './sites';
 import {
   collectEnvPaths,
   listEnvPathCandidates,
@@ -124,7 +128,23 @@ import {
 } from './windows-env';
 import { isDevMgrCaTrusted } from './ssl-trust';
 import { installRootCertCurrentUser } from '../helper/cert';
-import { hostsFileHasAllEntries } from '../helper/hosts';
+import { hostsFileHasAllEntries, getHostsPath } from '../helper/hosts';
+import { openTerminalCommand } from './site-terminal';
+import {
+  detectNvm,
+  nvmInstall,
+  nvmListAvailable,
+  nvmUse,
+  readNvmrc,
+  resolveSiteNodeBin,
+  type NvmStatus,
+  type ResolvedNode,
+} from './nvm';
+import {
+  getComposerStatus as readComposerStatus,
+  installComposer as installComposerTool,
+  type ComposerStatus,
+} from './composer';
 import { collectTlsSanNames, ensureDevCerts, ensureFullChainCert } from './tls';
 import {
   ensureDataLayout,
@@ -132,21 +152,33 @@ import {
   getDataDir,
   getLogsDir,
   getProjectsDir,
+  migrateLegacyDataDir,
+  setDataDirOverride,
+  setProjectsDirOverride,
 } from '../shared/paths';
 
 export type AppSettingsPatch = {
   general?: {
     path_in_env?: boolean;
     path_env_selected?: string[];
+    start_minimized?: boolean;
+    start_maximized?: boolean;
+    autostart?: boolean;
+    launch_on_login?: boolean;
+    xdebug?: boolean;
   };
   services?: Partial<{
     nginx: { enabled?: boolean };
+    apache: { enabled?: boolean };
     php: { enabled?: boolean };
     mysql: { enabled?: boolean };
     postgres: { enabled?: boolean };
     redis: { enabled?: boolean };
     nodejs: { enabled?: boolean };
     phpmyadmin: { enabled?: boolean };
+    mailpit: { enabled?: boolean };
+    mongodb: { enabled?: boolean };
+    python: { enabled?: boolean };
   }>;
 };
 
@@ -166,13 +198,11 @@ function deferToEventLoop(): Promise<void> {
 
 function configServiceKeyToRuntime(
   key: keyof NonNullable<AppSettingsPatch['services']>,
-): (typeof SERVICE_START_ORDER)[number] | null {
+): string | null {
   if (key === 'php') return 'php-fpm';
-  if (key === 'nodejs' || key === 'phpmyadmin') return null;
-  if ((SERVICE_START_ORDER as readonly string[]).includes(key)) {
-    return key as (typeof SERVICE_START_ORDER)[number];
-  }
-  return null;
+  if (key === 'nodejs' || key === 'phpmyadmin' || key === 'python') return null;
+  // nginx, apache, mysql, postgres, redis, mailpit, mongodb map 1:1 to runtimes.
+  return key;
 }
 
 /** Order an arbitrary service list for sequential start (exported for tests). */
@@ -199,14 +229,21 @@ export class Orchestrator {
   private phpSupervisorTimer: ReturnType<typeof setInterval> | null = null;
   private phpFpmHealthFailures = 0;
   private readonly reverbManager = new SiteReverbManager();
+  /** Dedicated php-cgi instances for per-site isolated (non-default) PHP versions. */
+  private isolatedPhp = new Map<string, ManagedProcess>();
+  /** On-demand Xdebug php-cgi (active version + Xdebug) for triggered requests. */
+  private xdebugPhp: ManagedProcess | null = null;
 
   constructor(config?: DevConfig) {
     this.config = config ?? loadConfig();
+    setSiteTld(this.config.general.tld ?? 'test');
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
     this.services = new ServiceManager(this.config);
     this.refreshSites();
   }
 
   static createInitialized(): Orchestrator {
+    migrateLegacyDataDir();
     ensureDataLayout();
     initConfig();
     const config = loadConfig();
@@ -219,9 +256,70 @@ export class Orchestrator {
 
   reloadFromDisk(): void {
     this.config = applyManifestToConfig(loadConfig(), readManifest());
+    setSiteTld(this.config.general.tld ?? 'test');
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
     saveConfig(this.config);
     this.services = new ServiceManager(this.config);
     this.refreshSites();
+  }
+
+  /**
+   * Move the data directory to a new location. Stops services to release file
+   * locks, moves the folder (rename, or copy+delete across volumes), and stores
+   * the override. The app should be restarted afterwards.
+   */
+  async relocateDataDir(newDir: string): Promise<{ ok: boolean; message: string; path: string }> {
+    const target = path.resolve(newDir);
+    const current = path.resolve(getDataDir());
+    if (current === target) {
+      return { ok: true, message: 'Data directory is already there.', path: target };
+    }
+    if (fs.existsSync(target) && fs.readdirSync(target).length > 0) {
+      throw new Error('Choose an empty (or non-existent) target folder.');
+    }
+
+    await this.stopAllOnQuit();
+    await this.stopIsolatedPhp();
+
+    fs.mkdirSync(path.dirname(target), { recursive: true });
+    try {
+      fs.renameSync(current, target);
+    } catch {
+      // Cross-volume move: copy then remove.
+      fs.cpSync(current, target, { recursive: true });
+      fs.rmSync(current, { recursive: true, force: true });
+    }
+    setDataDirOverride(target);
+    return {
+      ok: true,
+      message: 'Data directory moved. Restart Stacklet to use the new location.',
+      path: target,
+    };
+  }
+
+  /** Set a custom parent folder for new projects (null reverts to the default). */
+  async setProjectsDir(dir: string | null): Promise<DevConfig> {
+    if (dir && dir.trim()) {
+      const resolved = path.resolve(dir.trim());
+      fs.mkdirSync(resolved, { recursive: true });
+      this.config.general.projects_dir = resolved;
+    } else {
+      delete this.config.general.projects_dir;
+    }
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
+    saveConfig(this.config);
+    return this.config;
+  }
+
+  /** Change the local TLD (e.g. test → localhost); regenerates hosts/certs/vhosts. */
+  async setTld(tld: string): Promise<DevConfig> {
+    setSiteTld(tld);
+    this.config.general.tld = getSiteTld();
+    saveConfig(this.config);
+    this.refreshSites();
+    await this.apply();
+    await this.provisionSiteHostsAndSsl();
+    return this.config;
   }
 
   getConfig(): DevConfig {
@@ -234,6 +332,7 @@ export class Orchestrator {
       configPath: getConfigPath(),
       projectsDir: getProjectsDir(),
       logsDir: getLogsDir(),
+      hostsPath: getHostsPath(),
     };
   }
 
@@ -265,6 +364,21 @@ export class Orchestrator {
     return restartWindowsEnvironment(this.config, { openTerminal });
   }
 
+  getComposerStatus(): ComposerStatus {
+    return readComposerStatus();
+  }
+
+  async installComposer(): Promise<ComposerStatus> {
+    const status = await installComposerTool();
+    // Add Composer to PATH if the user's selection includes everything.
+    try {
+      await this.syncEnvironmentPath();
+    } catch {
+      // PATH sync is best-effort
+    }
+    return status;
+  }
+
   async saveAppSettings(patch: AppSettingsPatch): Promise<DevConfig> {
     if (patch.general) {
       if (patch.general.path_in_env !== undefined) {
@@ -272,6 +386,21 @@ export class Orchestrator {
       }
       if (patch.general.path_env_selected !== undefined) {
         this.config.general.path_env_selected = [...patch.general.path_env_selected];
+      }
+      if (patch.general.start_minimized !== undefined) {
+        this.config.general.start_minimized = patch.general.start_minimized;
+      }
+      if (patch.general.start_maximized !== undefined) {
+        this.config.general.start_maximized = patch.general.start_maximized;
+      }
+      if (patch.general.autostart !== undefined) {
+        this.config.general.autostart = patch.general.autostart;
+      }
+      if (patch.general.launch_on_login !== undefined) {
+        this.config.general.launch_on_login = patch.general.launch_on_login;
+      }
+      if (patch.general.xdebug !== undefined) {
+        this.config.general.xdebug = patch.general.xdebug;
       }
     }
     const stopRuntime: string[] = [];
@@ -387,7 +516,11 @@ export class Orchestrator {
       }
     }
 
-    await this.restartNginxIfRunning();
+    if (this.config.general.web_server === 'apache') {
+      await this.restartApacheIfRunning();
+    } else {
+      await this.restartNginxIfRunning();
+    }
   }
 
   /** Reload alone can leave old workers (e.g. 1m body limit); full restart applies vhost changes. */
@@ -398,6 +531,191 @@ export class Orchestrator {
     } catch {
       // config is on disk for the next manual start
     }
+  }
+
+  private async restartApacheIfRunning(): Promise<void> {
+    if (this.services.apache.status.state !== 'running') return;
+    try {
+      await this.stopService('apache');
+      await this.startService('apache');
+    } catch {
+      // config is on disk for the next manual start
+    }
+  }
+
+  /** Switch the active web server, stopping the old one and starting the new. */
+  async setWebServer(server: WebServer): Promise<DevConfig> {
+    if (server !== 'nginx' && server !== 'apache') {
+      throw new Error(`Unknown web server: ${server}`);
+    }
+    const previous = this.config.general.web_server;
+    if (previous === server) return this.config;
+
+    const oldRuntime = previous === 'apache' ? 'apache' : 'nginx';
+    const newRuntime = server === 'apache' ? 'apache' : 'nginx';
+    const wasRunning = this.getService(oldRuntime).status.state === 'running';
+
+    if (wasRunning) {
+      try {
+        await this.stopService(oldRuntime);
+      } catch {
+        // ignore
+      }
+    }
+
+    this.config.general.web_server = server;
+    saveConfig(this.config);
+    await this.apply();
+
+    if (wasRunning && this.getService(newRuntime).isConfigured) {
+      try {
+        await this.startService(newRuntime);
+      } catch {
+        // surfaced on next refresh
+      }
+    }
+    return this.config;
+  }
+
+  // ---- Per-site PHP isolation: a dedicated php-cgi per non-default version ----
+
+  private buildIsolatedPhpProcess(
+    version: string,
+    active: string,
+    installed: string[],
+  ): ManagedProcess | null {
+    const phpRoot = getPhpInstallPath(version);
+    if (!phpRoot) return null;
+    const cgi = resolvePhpCgiBinary(
+      path.join(phpRoot, 'php-cgi.exe'),
+      path.join(phpRoot, 'php.exe'),
+    );
+    const port = phpPortForVersion(version, active, installed);
+    let spawn;
+    try {
+      spawn = buildPhpCgiSpawn(cgi, port);
+    } catch {
+      return null;
+    }
+    return new ManagedProcess(
+      `php-fpm-${version}`,
+      cgi,
+      spawn.args,
+      `php-cgi-${version}.pid`,
+      spawn.cwd,
+      {
+        listenPort: port,
+        spawnEnv: spawn.env,
+        supervise: true,
+        stderrLog: path.join(getLogsDir(), `php-cgi-${version}.stderr.log`),
+      },
+    );
+  }
+
+  /** Start php-cgi instances required by isolated sites; stop those no longer needed. */
+  private async reconcileIsolatedPhp(): Promise<void> {
+    const active = this.getDefaultPhpVersion();
+    const installed = listInstalledVersionDirs('php');
+    const required = new Set(requiredIsolatedVersions(this.sites, active, installed));
+
+    for (const [ver, proc] of [...this.isolatedPhp]) {
+      if (!required.has(ver)) {
+        try {
+          await proc.stop();
+        } catch {
+          // ignore
+        }
+        this.isolatedPhp.delete(ver);
+      }
+    }
+
+    for (const ver of required) {
+      let proc = this.isolatedPhp.get(ver);
+      if (!proc) {
+        const built = this.buildIsolatedPhpProcess(ver, active, installed);
+        if (!built) continue;
+        proc = built;
+        this.isolatedPhp.set(ver, proc);
+      }
+      if (proc.status.state !== 'running') {
+        try {
+          await proc.start();
+        } catch {
+          // surfaced on next refresh
+        }
+      }
+    }
+
+    await this.reconcileXdebugPhp();
+  }
+
+  private async stopIsolatedPhp(): Promise<void> {
+    for (const [, proc] of this.isolatedPhp) {
+      try {
+        await proc.stop();
+      } catch {
+        // ignore
+      }
+    }
+    this.isolatedPhp.clear();
+    await this.stopXdebugPhp();
+  }
+
+  /** Path to php_xdebug.dll for the active PHP version, if present. */
+  private xdebugDllForActive(): string | null {
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    if (!phpRoot) return null;
+    const dll = path.join(phpRoot, 'ext', 'php_xdebug.dll');
+    return fs.existsSync(dll) ? dll : null;
+  }
+
+  /** Run a second php-cgi (active version + Xdebug) on 9100 when on-demand Xdebug is enabled. */
+  private async reconcileXdebugPhp(): Promise<void> {
+    const dll = this.config.general.xdebug === true ? this.xdebugDllForActive() : null;
+    if (!dll) {
+      await this.stopXdebugPhp();
+      return;
+    }
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    if (!phpRoot) {
+      await this.stopXdebugPhp();
+      return;
+    }
+    const cgi = resolvePhpCgiBinary(
+      path.join(phpRoot, 'php-cgi.exe'),
+      path.join(phpRoot, 'php.exe'),
+    );
+    if (!this.xdebugPhp) {
+      let spawn;
+      try {
+        spawn = buildPhpCgiSpawn(cgi, PHP_XDEBUG_PORT, { xdebugDll: dll });
+      } catch {
+        return;
+      }
+      this.xdebugPhp = new ManagedProcess('php-xdebug', cgi, spawn.args, 'php-xdebug.pid', spawn.cwd, {
+        listenPort: PHP_XDEBUG_PORT,
+        spawnEnv: spawn.env,
+        supervise: true,
+        stderrLog: path.join(getLogsDir(), 'php-xdebug.stderr.log'),
+      });
+    }
+    if (this.xdebugPhp.status.state !== 'running') {
+      try {
+        await this.xdebugPhp.start();
+      } catch {
+        // surfaced on next refresh
+      }
+    }
+  }
+
+  private async stopXdebugPhp(): Promise<void> {
+    if (!this.xdebugPhp) return;
+    try {
+      await this.xdebugPhp.stop();
+    } catch {
+      // ignore
+    }
+    this.xdebugPhp = null;
   }
 
   private async applyPhpMaintenance(): Promise<void> {
@@ -487,13 +805,39 @@ export class Orchestrator {
     await this.applyLocalConfigs();
     await this.applyPhpMaintenance();
     await this.syncEnvironmentPath();
+    // Keep isolated php-cgi instances in sync when PHP is running.
+    if (this.services.phpFpm.status.state === 'running') {
+      await this.reconcileIsolatedPhp();
+    }
+  }
+
+  /**
+   * Full reload: regenerate every config + TLS cert (so sites are served over
+   * HTTPS), then restart every running runtime (nginx/apache/php/db/…) so the
+   * new configuration and certificates take effect everywhere.
+   */
+  async reloadAll(): Promise<unknown> {
+    const running = this.runtimeServiceStatuses()
+      .filter((s) => s.state === 'running')
+      .map((s) => s.name);
+
+    await this.apply();
+
+    if (running.length > 0) {
+      await this.stop(running);
+      await this.start(running);
+    }
+    return this.status();
   }
 
   /** Installed (binary on disk) and enabled services, in safe start order. */
   getInstalledStartableNames(): string[] {
-    return SERVICE_START_ORDER.filter((name) => {
-      if (!this.isServiceEnabled(name)) return false;
-      return this.getService(name).isConfigured;
+    const webServer = this.config.general.web_server === 'apache' ? 'apache' : 'nginx';
+    return SERVICE_START_ORDER.flatMap((name) => {
+      // Only the active web server (nginx OR apache) is startable.
+      const target = name === 'nginx' ? webServer : name;
+      if (!this.isServiceEnabled(target)) return [];
+      return this.getService(target).isConfigured ? [target] : [];
     });
   }
 
@@ -512,6 +856,7 @@ export class Orchestrator {
     }
     if (targets.includes('php-fpm')) {
       this.markPhpAutoRestart(true);
+      await this.reconcileIsolatedPhp();
     }
     if (!services || services.length === 0) {
       await this.syncSiteReverb();
@@ -537,6 +882,7 @@ export class Orchestrator {
     }
     if (ordered.includes('php-fpm')) {
       this.markPhpAutoRestart(true);
+      await this.reconcileIsolatedPhp();
     }
   }
 
@@ -550,7 +896,10 @@ export class Orchestrator {
     onPhase?.('listed');
     await deferToEventLoop();
 
-    const names = this.getInstalledStartableNames();
+    // Respect the autostart setting — when off, configs are applied but no
+    // services are started on launch.
+    const names =
+      this.config.general.autostart === false ? [] : this.getInstalledStartableNames();
     for (const name of names) {
       onPhase?.({ kind: 'starting', service: name });
       try {
@@ -586,6 +935,7 @@ export class Orchestrator {
     const targets = this.resolveServiceNames(services);
     if (targets.includes('php-fpm')) {
       this.markPhpAutoRestart(false);
+      await this.stopIsolatedPhp();
     }
     for (const name of targets) {
       await this.getService(name).stop();
@@ -600,6 +950,7 @@ export class Orchestrator {
   async stopAllOnQuit(): Promise<void> {
     this.markPhpAutoRestart(false);
     await this.reverbManager.stopAll();
+    await this.stopIsolatedPhp();
     const order = [...SERVICE_START_ORDER].reverse();
     for (const name of order) {
       try {
@@ -649,8 +1000,31 @@ export class Orchestrator {
     if (!isVersionInstalledOnDisk(serviceId, version)) {
       throw new Error(`${serviceId} ${version} is not installed`);
     }
+    // Stop the currently-running runtime BEFORE repointing to the new version,
+    // otherwise the old binary keeps holding its port (e.g. php-cgi on 9000) and
+    // the freshly-built ServiceManager adopts/conflicts with it → 502s on switch.
+    const targets = this.stopTargetsForBundled(serviceId);
+    const runningNames = new Set(
+      this.runtimeServiceStatuses()
+        .filter((s) => s.state === 'running')
+        .map((s) => s.name),
+    );
+    const wasRunning = targets.filter((t) => runningNames.has(t));
+    if (wasRunning.length > 0) {
+      await this.stop(targets);
+    }
+
     setInstalled(serviceId, version, getInstallDir(serviceId, version));
     await this.reloadAfterBundledChange();
+
+    // Bring the runtime back up on the new version if it had been running.
+    for (const target of wasRunning) {
+      try {
+        await this.startService(target);
+      } catch {
+        // start failures surface via status/rowErrors on the next refresh
+      }
+    }
   }
 
   async setDefaultPhpVersion(version: string): Promise<void> {
@@ -1083,12 +1457,17 @@ export class Orchestrator {
     }
   }
 
-  async createLaravelSite(name: string): Promise<Site[]> {
-    const root = await createLaravelProject(getProjectsDir(), name);
+  async createLaravelSite(
+    name: string,
+    onProgress?: (message: string) => void,
+  ): Promise<Site[]> {
+    const root = await createLaravelProject(getProjectsDir(), name, onProgress);
+    onProgress?.('Registering site and applying configuration…');
     addRegisteredSite(name, root);
     this.refreshSites();
     await this.apply();
     await this.provisionSiteHostsAndSsl();
+    onProgress?.('Done');
     return this.getSites();
   }
 
@@ -1133,6 +1512,24 @@ export class Orchestrator {
     this.refreshSites();
     await this.apply();
     await this.provisionSiteHostsAndSsl();
+    return this.getSites();
+  }
+
+  async setSiteDocRoot(name: string, docRoot: string | null): Promise<Site[]> {
+    updateRegisteredSite(name, { doc_root: docRoot });
+    this.refreshSites();
+    await this.apply();
+    return this.getSites();
+  }
+
+  /** Isolate a site to a specific installed PHP version (null = default). */
+  async setSitePhpVersion(name: string, version: string | null): Promise<Site[]> {
+    if (version && !getPhpInstallPath(version)) {
+      throw new Error(`PHP ${version} is not installed`);
+    }
+    updateRegisteredSite(name, { php_version: version });
+    this.refreshSites();
+    await this.apply();
     return this.getSites();
   }
 
@@ -1210,6 +1607,97 @@ export class Orchestrator {
     return runLaravelArtisan(site, args);
   }
 
+  /** Bundled Node's bin dir (folder holding node.exe), or null if not installed. */
+  private bundledNodeBinDir(): string | null {
+    const bin = this.config.services.nodejs?.binary?.trim();
+    return bin ? path.dirname(bin) : null;
+  }
+
+  /**
+   * PATH dirs for a site command: the site's `.nvmrc`-pinned Node (via nvm) when
+   * present, else bundled Node, ahead of the active PHP.
+   */
+  private async sitePathDirs(siteRoot: string): Promise<string[]> {
+    const phpRoot = getPhpInstallPath(this.getDefaultPhpVersion());
+    const node = await resolveSiteNodeBin(siteRoot, this.bundledNodeBinDir());
+    const dirs: string[] = [];
+    if (node.dir) dirs.push(node.dir);
+    if (phpRoot) dirs.push(phpRoot);
+    return dirs;
+  }
+
+  /** Open an interactive `php artisan tinker` terminal in the site, active PHP on PATH. */
+  async openSiteTinker(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    await openTerminalCommand({
+      key: `tinker-${site.name}`,
+      cwd: site.root,
+      pathDirs: await this.sitePathDirs(site.root),
+      command: 'php artisan tinker',
+      title: `Tinker — ${site.name}`,
+    });
+  }
+
+  /** Per-site Node resolution for the UI: pinned `.nvmrc` spec + resolved runtime. */
+  async getSiteNodeInfo(
+    name: string,
+  ): Promise<{ nvmrc: string | null; resolved: ResolvedNode }> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    return {
+      nvmrc: readNvmrc(site.root),
+      resolved: await resolveSiteNodeBin(site.root, this.bundledNodeBinDir()),
+    };
+  }
+
+  // ---- nvm-windows (global Node version management) ----
+  async nvmStatus(): Promise<NvmStatus> {
+    return detectNvm();
+  }
+
+  async nvmAvailable(): Promise<string[]> {
+    return nvmListAvailable();
+  }
+
+  async nvmInstall(version: string): Promise<string> {
+    return nvmInstall(version);
+  }
+
+  async nvmUse(version: string): Promise<string> {
+    return nvmUse(version);
+  }
+
+  /**
+   * Share a site publicly via ngrok (host-header rewrite to the .test vhost).
+   * Opens a terminal running ngrok — requires ngrok installed + an auth token
+   * (`ngrok config add-authtoken ...`).
+   */
+  async openSiteShare(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    await openTerminalCommand({
+      key: `share-${site.name}`,
+      cwd: site.root,
+      pathDirs: [],
+      command: `ngrok http --host-header=rewrite ${site.hostname}`,
+      title: `Share — ${site.hostname}`,
+    });
+  }
+
+  /** Open a plain terminal in the site folder with the site's Node + active PHP on PATH. */
+  async openSiteTerminal(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    await openTerminalCommand({
+      key: `term-${site.name}`,
+      cwd: site.root,
+      pathDirs: await this.sitePathDirs(site.root),
+      command: `echo Stacklet terminal — ${site.name}`,
+      title: `Terminal — ${site.name}`,
+    });
+  }
+
   resolveLogIdForSite(name: string): string | null {
     const site = findSiteByName(this.sites, name);
     if (!site || site.framework !== 'laravel') return null;
@@ -1271,6 +1759,8 @@ export class Orchestrator {
 
   private async reloadAfterBundledChange(): Promise<void> {
     this.config = applyManifestToConfig(loadConfig(), readManifest());
+    setSiteTld(this.config.general.tld ?? 'test');
+    setProjectsDirOverride(this.config.general.projects_dir ?? null);
     saveConfig(this.config);
     this.services = new ServiceManager(this.config);
     this.refreshSites();
@@ -1389,6 +1879,7 @@ export class Orchestrator {
       logsDir: getLogsDir(),
       configPath: getConfigPath(),
       projectsDir: getProjectsDir(),
+      hostsPath: getHostsPath(),
       webServer: this.config.general.web_server,
       sites: this.sites,
       ssl,
@@ -1428,6 +1919,8 @@ export class Orchestrator {
     switch (name) {
       case 'nginx':
         return s.nginx.enabled !== false;
+      case 'apache':
+        return s.apache.enabled !== false;
       case 'php-fpm':
       case 'php':
         return s.php.enabled !== false;
@@ -1437,6 +1930,10 @@ export class Orchestrator {
         return s.postgres.enabled !== false;
       case 'redis':
         return s.redis.enabled !== false;
+      case 'mailpit':
+        return s.mailpit.enabled !== false;
+      case 'mongodb':
+        return s.mongodb.enabled !== false;
       default:
         return false;
     }
@@ -1446,6 +1943,8 @@ export class Orchestrator {
     switch (name) {
       case 'nginx':
         return this.services.nginx;
+      case 'apache':
+        return this.services.apache;
       case 'php-fpm':
       case 'php':
         return this.services.phpFpm;
@@ -1457,6 +1956,10 @@ export class Orchestrator {
         return this.services.redis;
       case 'nodejs':
         return this.services.nodejs;
+      case 'mailpit':
+        return this.services.mailpit;
+      case 'mongodb':
+        return this.services.mongodb;
       default:
         throw new Error(`unknown service: ${name}`);
     }

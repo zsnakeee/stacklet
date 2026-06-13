@@ -13,6 +13,25 @@ export interface RegisteredSite {
   enabled?: boolean;
   favorite?: boolean;
   reverb?: SiteReverbConfig;
+  /** Override the served document root (absolute, or relative to root). */
+  doc_root?: string;
+  /** Isolated PHP version for this site (empty = default). */
+  php_version?: string;
+}
+
+/** Custom doc_root override if set + exists, else framework auto-detection. */
+function resolveRecordDocRoot(
+  record: RegisteredSite,
+  root: string,
+  framework: Site['framework'],
+): string {
+  if (record.doc_root && record.doc_root.trim()) {
+    const custom = path.isAbsolute(record.doc_root)
+      ? record.doc_root
+      : path.join(root, record.doc_root);
+    if (fs.existsSync(custom)) return path.resolve(custom);
+  }
+  return resolveDocRoot(root, framework);
 }
 
 function safeSiteName(raw: string, fallbackRoot: string): string {
@@ -69,12 +88,13 @@ export function registeredToSite(
     name: record.name,
     hostname: effectiveHostname(record),
     root,
-    doc_root: resolveDocRoot(root, framework),
+    doc_root: resolveRecordDocRoot(record, root, framework),
     framework,
     enabled: record.enabled !== false,
     favorite: record.favorite === true,
     aliases: normalizeAliasList(record.aliases),
     reverb,
+    php_version: typeof record.php_version === 'string' ? record.php_version : undefined,
   };
 }
 

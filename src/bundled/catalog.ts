@@ -16,7 +16,10 @@ export async function getCatalog(forceRefresh = false): Promise<ServiceCatalogEn
     const cached = readCatalogCache();
     if (cached) {
       const phpEmpty = cached.find((e) => e.id === 'php')?.versions.length === 0;
-      if (!phpEmpty) {
+      // Bypass a stale cache that predates a newly-added service (e.g. Apache,
+      // Mailpit, MongoDB, Python) so the catalog always reflects SERVICE_META.
+      const missingService = SERVICE_META.some((m) => !cached.some((e) => e.id === m.id));
+      if (!phpEmpty && !missingService) {
         memoryCatalog = cached;
         return cached;
       }

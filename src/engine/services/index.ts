@@ -16,11 +16,14 @@ export {
 
 export class ServiceManager {
   readonly nginx: ManagedProcess;
+  readonly apache: ManagedProcess;
   readonly phpFpm: ManagedProcess;
   readonly mysql: ManagedProcess;
   readonly postgres: ManagedProcess;
   readonly redis: ManagedProcess;
   readonly nodejs: ManagedProcess;
+  readonly mailpit: ManagedProcess;
+  readonly mongodb: ManagedProcess;
 
   constructor(config: DevConfig) {
     const nginx = config.services.nginx;
@@ -31,6 +34,18 @@ export class ServiceManager {
       nginx.binary,
       prefix && conf ? ['-p', prefix, '-c', conf] : [],
       path.join(prefix || '.', 'logs', 'nginx.pid'),
+    );
+
+    const apache = config.services.apache;
+    const apacheRoot = apache.server_root ? path.resolve(apache.server_root) : '';
+    const apacheConf = apache.config ? path.resolve(apache.config) : '';
+    this.apache = new ManagedProcess(
+      'apache',
+      apache.binary,
+      apache.binary && apacheRoot && apacheConf ? ['-d', apacheRoot, '-f', apacheConf] : [],
+      'apache.pid',
+      apacheRoot || undefined,
+      { listenPort: apache.port },
     );
 
     const phpFpmBinary = resolvePhpCgiBinary(
@@ -132,11 +147,56 @@ export class ServiceManager {
       [],
       'nodejs.pid',
     );
+
+    const mailpit = config.services.mailpit;
+    this.mailpit = new ManagedProcess(
+      'mailpit',
+      mailpit.binary,
+      mailpit.binary
+        ? [
+            '--smtp',
+            `127.0.0.1:${mailpit.port}`,
+            '--listen',
+            `127.0.0.1:${mailpit.ui_port}`,
+          ]
+        : [],
+      'mailpit.pid',
+      undefined,
+      { listenPort: mailpit.ui_port },
+    );
+
+    const mongodb = config.services.mongodb;
+    const mongoInstallRoot = mongodb.binary ? path.dirname(path.resolve(mongodb.binary)) : '';
+    this.mongodb = new ManagedProcess(
+      'mongodb',
+      mongodb.binary,
+      mongodb.binary && mongodb.data_dir
+        ? [
+            '--dbpath',
+            path.resolve(mongodb.data_dir),
+            '--port',
+            String(mongodb.port),
+            '--bind_ip',
+            '127.0.0.1',
+          ]
+        : [],
+      'mongodb.pid',
+      mongoInstallRoot || undefined,
+      { listenPort: mongodb.port, dataDir: mongodb.data_dir || undefined },
+    );
   }
 
   /** Processes the engine can start/stop (Node is runtime-only). */
   startable(): ManagedProcess[] {
-    return [this.nginx, this.phpFpm, this.mysql, this.postgres, this.redis];
+    return [
+      this.nginx,
+      this.phpFpm,
+      this.mysql,
+      this.postgres,
+      this.redis,
+      this.mailpit,
+      this.mongodb,
+    ];
   }
 
   all(): ManagedProcess[] {

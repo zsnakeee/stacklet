@@ -1,5 +1,6 @@
 ﻿import type { BundledServiceId, ServiceCatalogEntry, ServiceVersionEntry } from '../types';
 import { SERVICE_META } from '../catalog-meta';
+import { resolveApacheVersions } from './apache';
 import { resolveMysqlVersions } from './mysql';
 import { resolveNginxVersions } from './nginx';
 import { resolveNodejsVersions } from './nodejs';
@@ -10,17 +11,24 @@ import { resolvePhpMyAdminVersions } from './phpmyadmin';
 import { PHPMYADMIN_STATIC_VERSIONS } from './phpmyadmin-static';
 import { resolvePostgresVersions } from './postgres';
 import { resolveRedisVersions } from './redis';
+import { resolveMailpitVersions } from './mailpit';
+import { resolveMongodbVersions } from './mongodb';
+import { resolvePythonVersions } from './python';
 
 type ResolverFn = (limit?: number) => Promise<ServiceVersionEntry[]>;
 
 const RESOLVERS: Record<BundledServiceId, ResolverFn> = {
   nginx: resolveNginxVersions,
+  apache: resolveApacheVersions,
   php: resolvePhpVersions,
   mysql: resolveMysqlVersions,
   postgres: resolvePostgresVersions,
   nodejs: resolveNodejsVersions,
   redis: resolveRedisVersions,
   phpmyadmin: resolvePhpMyAdminVersions,
+  mailpit: resolveMailpitVersions,
+  mongodb: resolveMongodbVersions,
+  python: resolvePythonVersions,
 };
 
 /** Fallback when upstream APIs are unreachable. */
@@ -63,6 +71,14 @@ const FALLBACK: Partial<Record<BundledServiceId, ServiceVersionEntry[]>> = {
     },
   ],
   php: PHP_STATIC_VERSIONS,
+  mailpit: [
+    {
+      version: '1.21.8',
+      label: 'Mailpit 1.21.8 (Windows x64)',
+      url: 'https://github.com/axllent/mailpit/releases/download/v1.21.8/mailpit-windows-amd64.zip',
+      sizeBytes: 18_000_000,
+    },
+  ],
 };
 
 export async function resolveServiceVersions(
