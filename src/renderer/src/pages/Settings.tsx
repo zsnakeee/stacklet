@@ -139,7 +139,7 @@ export function Settings() {
 
       <UpdatesSection />
 
-      <Section title="Paths">
+      <Section title={t('settings.sections.paths')}>
         <dl className="flex flex-col">
           {Object.entries(paths).map(([label, value]) => (
             <div key={label} className="grid grid-cols-[10rem_1fr_auto] items-center gap-3 py-1.5 text-sm">
@@ -265,7 +265,7 @@ export function Settings() {
         </Hint>
       </Section>
 
-      <Section title="Startup">
+      <Section title={t('settings.sections.startup')}>
         <Hint>Control what happens when Stacklet launches and whether it starts with Windows.</Hint>
         <div className="mt-3 flex flex-col gap-3">
           <Toggle
@@ -309,7 +309,7 @@ export function Settings() {
         </div>
       </Section>
 
-      <Section title="HTTPS (*.test)">
+      <Section title={t('settings.sections.https')}>
         <Hint>
           Stacklet signs local sites with its own certificate authority. Trust it once in Windows
           (admin/UAC), then restart your browser.
@@ -356,7 +356,7 @@ export function Settings() {
         )}
       </Section>
 
-      <Section title="Environment (PATH)">
+      <Section title={t('settings.sections.environment')}>
         <Hint>
           Choose which folders to add to your Windows user PATH. Apply and PHP version changes sync
           the checked items automatically.
@@ -462,7 +462,7 @@ export function Settings() {
         )}
       </Section>
 
-      <Section title="Services">
+      <Section title={t('settings.sections.services')}>
         <Hint>
           Disabled services are skipped by Start all and autostart, and are stopped when you save.
           Settings are applied automatically when you save.
@@ -510,7 +510,7 @@ export function Settings() {
         )}
       </Section>
 
-      <Section title="Tools">
+      <Section title={t('settings.sections.tools')}>
         <Hint>
           Composer is installed via the active PHP, so it always uses your default PHP version.
           After installing, enable it under Environment (PATH) so <code>composer</code> works in any
@@ -573,7 +573,7 @@ export function Settings() {
 
       <NgrokSection />
 
-      <Section title="Web server">
+      <Section title={t('settings.sections.webServer')}>
         <Hint>
           Choose which web server serves your sites. Install Apache from Services first; switching
           stops one server and starts the other (PHP is shared via FastCGI).
@@ -824,6 +824,7 @@ function formatMB(bytes: number): string {
 
 /** Auto-update: show current version, check GitHub, download + install. */
 function UpdatesSection() {
+  const { t } = useTranslation();
   const toast = useToast();
   const [version, setVersion] = useState<string>(__APP_VERSION__);
   const [supported, setSupported] = useState(true);
@@ -920,7 +921,7 @@ function UpdatesSection() {
   };
 
   return (
-    <Section title="Updates">
+    <Section title={t('settings.sections.updates')}>
       <Hint>
         Stacklet checks GitHub for new releases. Updates are optional — the app works fully offline
         and never updates without your go-ahead.
@@ -951,6 +952,7 @@ function UpdatesSection() {
 
 /** Public sharing via ngrok: auto-install + auth token. */
 function NgrokSection() {
+  const { t } = useTranslation();
   const toast = useToast();
   const [status, setStatus] = useState<NgrokInfo | null>(null);
   const [token, setToken] = useState('');
@@ -997,7 +999,7 @@ function NgrokSection() {
   };
 
   return (
-    <Section title="Sharing (ngrok)">
+    <Section title={t('settings.sections.sharing')}>
       <Hint>
         “Share online” on a site exposes it publicly through ngrok. Stacklet installs ngrok for you;
         add a free auth token from{' '}
@@ -1079,6 +1081,7 @@ function NgrokSection() {
 
 /** Terminal experience: auto-install Cmder/Clink for rich tab completion. */
 function TerminalSection() {
+  const { t } = useTranslation();
   const toast = useToast();
   const { config, refresh } = useStore();
   const [status, setStatus] = useState<CmderInfo | null>(null);
@@ -1133,7 +1136,7 @@ function TerminalSection() {
   };
 
   return (
-    <Section title="Terminal">
+    <Section title={t('settings.sections.terminal')}>
       <Hint>
         Stacklet can run its terminals (Open terminal, Tinker) through Cmder/Clink for rich tab
         completion, history search, and a Git-aware prompt — the same as{' '}
