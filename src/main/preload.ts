@@ -153,6 +153,11 @@ const stackletAPI: StackletAPI = {
   shell: {
     openExternal: (url) => ipcRenderer.invoke('stacklet:shell:openExternal', url),
   },
+  diagnostics: {
+    report: (error) => ipcRenderer.send('stacklet:diagnostics:report', error),
+    openLog: () => ipcRenderer.invoke('stacklet:diagnostics:openLog'),
+    logPath: () => ipcRenderer.invoke('stacklet:diagnostics:logPath'),
+  },
   composer: {
     status: () => ipcRenderer.invoke('stacklet:composer:status'),
     install: () => ipcRenderer.invoke('stacklet:composer:install'),

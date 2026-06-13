@@ -29,9 +29,19 @@ export interface HelperRuntime {
 
 export function isElevated(): boolean {
   if (process.platform !== 'win32') return false;
+  // NOTE: `net session` is unreliable — on some machines it exits 0 for a
+  // NON-elevated user, which made the app believe it was already admin and skip
+  // the UAC relaunch entirely. Check the process integrity level instead: a
+  // UAC-elevated process runs at "High" (SID S-1-16-12288) or "System"
+  // (S-1-16-16384); a normal process runs at "Medium" (S-1-16-8192).
   try {
-    execFileSync('net', ['session'], { stdio: 'ignore' });
-    return true;
+    const whoami = path.join(
+      process.env['SystemRoot'] ?? 'C:\\Windows',
+      'System32',
+      'whoami.exe',
+    );
+    const out = execFileSync(whoami, ['/groups'], { encoding: 'utf8' });
+    return out.includes('S-1-16-12288') || out.includes('S-1-16-16384');
   } catch {
     return false;
   }

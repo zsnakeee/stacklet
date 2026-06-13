@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Badge, IconButton } from '@/components/ui/primitives';
 import { Icon } from '@/components/Icon';
@@ -42,6 +43,7 @@ function StatCard({
 }
 
 function PhpBar() {
+  const { t } = useTranslation();
   const ready = useDeferredMount(true, { minDelayMs: 2000, idleTimeoutMs: 6000 });
   const { runAction } = useAction();
   const { refresh } = useStore();
@@ -66,7 +68,7 @@ function PhpBar() {
   return (
     <div className="flex items-center gap-3 rounded-xl border border-border bg-surface/40 px-4 py-3">
       <label htmlFor="php-default" className="text-sm text-text-secondary">
-        Default PHP
+        {t('dashboard.defaultPhp')}
       </label>
       <select
         id="php-default"
@@ -103,6 +105,7 @@ function PhpBar() {
 }
 
 export function Dashboard() {
+  const { t } = useTranslation();
   const { runAction } = useAction();
   const toast = useToast();
   const { theme } = useTheme();
@@ -186,24 +189,33 @@ export function Dashboard() {
                       : 'bg-text-muted',
                 ].join(' ')}
               />
-              {errorCount > 0 ? 'Needs attention' : running > 0 ? 'Live' : 'Idle'}
+              {errorCount > 0
+                ? t('dashboard.status.needsAttention')
+                : running > 0
+                  ? t('dashboard.status.live')
+                  : t('dashboard.status.idle')}
             </span>
             <h2 className="text-4xl font-bold tracking-tight text-foreground">
               Stack<span className="text-primary">let</span>
             </h2>
             <p className="text-sm text-text-secondary">
-              {running} of {installedCount} services running · {siteCount}{' '}
-              {siteCount === 1 ? 'site' : 'sites'}
+              {t('dashboard.summary', {
+                running,
+                installed: installedCount,
+                count: siteCount,
+              })}
             </p>
           </div>
           <div className="grid grid-cols-3 gap-3">
-            <StatCard value={running} label="Running" highlight />
-            <StatCard value={Math.max(0, installedCount - running)} label="Stopped" />
-            <StatCard value={errorCount} label="Attention" warn={errorCount > 0} />
+            <StatCard value={running} label={t('dashboard.stat.running')} highlight />
+            <StatCard
+              value={Math.max(0, installedCount - running)}
+              label={t('dashboard.stat.stopped')}
+            />
+            <StatCard value={errorCount} label={t('dashboard.stat.attention')} warn={errorCount > 0} />
           </div>
         </div>
         <DashboardGlobe
-          key={theme}
           width={300}
           height={260}
           primaryColor="rgb(45, 212, 170)"
@@ -228,7 +240,7 @@ export function Dashboard() {
       {globalError && (
         <div className="flex items-start gap-3 rounded-xl border border-danger/40 bg-danger/5 p-4">
           <pre className="flex-1 whitespace-pre-wrap text-sm text-danger">{globalError}</pre>
-          <IconButton tone="default" title="Dismiss" onClick={() => setGlobalError(null)}>
+          <IconButton tone="default" title={t('common.dismiss')} onClick={() => setGlobalError(null)}>
             <Icon name="dismiss" size={14} />
           </IconButton>
         </div>
@@ -239,11 +251,11 @@ export function Dashboard() {
       <div className="overflow-x-auto rounded-xl border border-border">
         <div className="min-w-[640px]">
         <div className="grid grid-cols-[2fr_1fr_0.7fr_0.8fr_auto] gap-3 border-b border-border bg-surface/60 px-4 py-2.5 text-xs font-medium uppercase tracking-wide text-text-muted">
-          <span>Service</span>
-          <span>Status</span>
-          <span>Port</span>
-          <span>Version</span>
-          <span className="text-right">Actions</span>
+          <span>{t('dashboard.col.service')}</span>
+          <span>{t('dashboard.col.status')}</span>
+          <span>{t('dashboard.col.port')}</span>
+          <span>{t('dashboard.col.version')}</span>
+          <span className="text-right">{t('dashboard.col.actions')}</span>
         </div>
         {RUNTIME_ROWS.map((row) => {
           const bundled = bundledById(status, row.bundledId);
@@ -254,7 +266,7 @@ export function Dashboard() {
           const errText = installed ? rowErrors.get(row.bundledId) : undefined;
           const badge = installed
             ? badgeForRuntime(rt, { starting: isStarting, error: Boolean(errText) })
-            : ({ variant: 'missing', label: 'Not installed' } as const);
+            : ({ variant: 'missing', label: t('common.notInstalled') } as const);
 
           return (
             <div
@@ -291,7 +303,7 @@ export function Dashboard() {
                 <div className="flex items-center justify-end gap-1.5">
                   <IconButton
                     tone="primary"
-                    title="Start"
+                    title={t('common.start')}
                     disabled={!installed || isRunning || isStarting}
                     onClick={() => runServiceAction(row.bundledId, row.runtime, 'Start', true)}
                   >
@@ -299,14 +311,14 @@ export function Dashboard() {
                   </IconButton>
                   <IconButton
                     tone="danger"
-                    title="Stop"
+                    title={t('common.stop')}
                     disabled={!installed || !isRunning || isStarting}
                     onClick={() => runServiceAction(row.bundledId, row.runtime, 'Stop', false)}
                   >
                     <Icon name="stop" />
                   </IconButton>
                   <IconButton
-                    title="Open log"
+                    title={t('dashboard.openLog')}
                     disabled={!installed}
                     onClick={() =>
                       runAction({
@@ -314,7 +326,7 @@ export function Dashboard() {
                         successToast: false,
                         run: async () => {
                           const ok = await openServiceLog(row.bundledId);
-                          if (!ok) toast.info('No log file for this service yet. Start it and try again.');
+                          if (!ok) toast.info(t('dashboard.noLogYet'));
                         },
                       })
                     }
@@ -323,8 +335,8 @@ export function Dashboard() {
                   </IconButton>
                   <Link
                     to={`/services/${row.bundledId}`}
-                    title="Settings"
-                    aria-label="Settings"
+                    title={t('nav.settings')}
+                    aria-label={t('nav.settings')}
                     className="inline-flex size-9 items-center justify-center rounded-md border border-border bg-surface/40 text-text-secondary transition-colors hover:bg-surface hover:text-foreground"
                   >
                     <Icon name="settings" />
@@ -335,7 +347,7 @@ export function Dashboard() {
                 <div className="flex items-start gap-3 border-t border-danger/30 bg-danger/5 px-4 py-2">
                   <pre className="flex-1 whitespace-pre-wrap text-xs text-danger">{errText}</pre>
                   <IconButton
-                    title="Dismiss error"
+                    title={t('common.dismissError')}
                     onClick={() => clearRowError(row.bundledId)}
                   >
                     <Icon name="dismiss" size={14} />

@@ -8,6 +8,11 @@ import React, {
   useDeferredValue,
 } from "react";
 import { cn } from "@/lib/utils";
+// Bundled as an inlined data URL so the globe's land map loads instantly from
+// disk over file:// — no CDN round-trip (which silently failed offline / on a
+// slow network and left the globe blank), and a data: URL keeps the canvas
+// untainted so getImageData() can read pixels for dot placement.
+import landMapDataUrl from "@/assets/globe-land-map.png?inline";
 
 type GlobeInstance = {
   globeImageUrl: (url: string) => GlobeInstance;
@@ -53,14 +58,6 @@ type GlobeInstance = {
     autoRotateSpeed: number;
     enabled: boolean;
     enableZoom: boolean;
-  };
-  scene: () => {
-    traverse: (
-      fn: (object: {
-        geometry?: { dispose: () => void };
-        material?: { dispose: () => void } | Array<{ dispose: () => void }>;
-      }) => void,
-    ) => void;
   };
   onGlobeClick: (
     fn: (coords: { lat: number; lng: number }, event: MouseEvent) => void,
@@ -174,6 +171,24 @@ interface Ring {
 const landDotsCache = new Map<string, LandDot[]>();
 
 /**
+ * Persistent globe cache. A fully built WebGL globe is expensive (context
+ * creation + scene setup + image decode), so once built it's kept alive in a
+ * detached <div> and re-attached on later mounts instead of being rebuilt.
+ * Navigating away → back, or toggling a panel, reuses the same instance — the
+ * globe "loads once" and stays cached for the app's lifetime. Keyed by the
+ * visual config so a theme/size change builds its own (small, bounded) variant.
+ */
+interface GlobeCacheEntry {
+  holder: HTMLDivElement;
+  world: GlobeInstance;
+  /** Resume the arc animation + auto-rotation (on re-attach). */
+  startAnim: () => void;
+  /** Pause everything while detached so a hidden globe costs no CPU. */
+  stopAnim: () => void;
+}
+const globeCache = new Map<string, GlobeCacheEntry>();
+
+/**
  * Efficient random sampling without full array shuffle
  * Uses Fisher-Yates partial shuffle approach
  */
@@ -196,36 +211,11 @@ function getRandomSample<T>(arr: T[], n: number): T[] {
 }
 
 /**
- * Globe - A 3D rotating globe with animated connection arcs
+ * Globe - A 3D rotating globe with animated connection arcs.
  *
- * Features:
- * - Interactive 3D globe with auto-rotation
- * - Animated arcs showing connections between points
- * - Land dots representing continents
- * - Pulsing rings at destination points
- * - Fully responsive and customizable
- * - Performance optimized with visibility-based animation pausing
- *
- * @example
- * ```tsx
- *
- * <Globe />
- *
- *
- * <Globe
- *   primaryColor="rgb(59, 130, 246)"
- *   neutralColor="rgb(156, 163, 175)"
- *   autoRotateSpeed={1.2}
- * />
- *
- *
- * <Globe
- *   width={800}
- *   height={800}
- *   arcCount={15}
- *   arcInterval={4000}
- * />
- * ```
+ * Built once and cached: the first mount creates the WebGL globe; later mounts
+ * re-attach the cached instance instantly (no rebuild, no re-fade), and the
+ * animation pauses while the globe is detached so it never wastes CPU offscreen.
  */
 export const Globe: React.FC<GlobeProps> = ({
   width = "auto",
@@ -245,7 +235,7 @@ export const Globe: React.FC<GlobeProps> = ({
   landDotRows = 200,
   pointSize = 0.25,
   atmosphereAltitude = 0.3,
-  landMapUrl = "https://assets.ot.digital/img/map.png",
+  landMapUrl = landMapDataUrl,
   className,
   onReady,
   onGlobeClick,
@@ -254,22 +244,16 @@ export const Globe: React.FC<GlobeProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const globeRef = useRef<GlobeInstance | null>(null);
-  const animationIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const animationFrameRef = useRef<number | null>(null);
-  const animationTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
-  const isAnimatingRef = useRef(false);
-  const cleanupFnRef = useRef<(() => void) | null>(null);
-  const isInitializingRef = useRef(false);
-  const isVisibleRef = useRef(true);
-  const dotsRef = useRef<LandDot[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isGlobeVisible, setIsGlobeVisible] = useState(false);
 
   const onGlobeClickRef = useRef(onGlobeClick);
+  const onReadyRef = useRef(onReady);
   useEffect(() => {
     onGlobeClickRef.current = onGlobeClick;
-  }, [onGlobeClick]);
+    onReadyRef.current = onReady;
+  }, [onGlobeClick, onReady]);
 
   const deferredPrimaryColor = useDeferredValue(primaryColor);
   const deferredNeutralColor = useDeferredValue(neutralColor);
@@ -287,13 +271,15 @@ export const Globe: React.FC<GlobeProps> = ({
     const loadScripts = async () => {
       try {
         if (!window.Globe) {
-          const mod = (await import('globe.gl')) as unknown as { default: unknown };
+          const mod = (await import("globe.gl")) as unknown as {
+            default: unknown;
+          };
           (window as unknown as { Globe: unknown }).Globe = mod.default ?? mod;
         }
         if (!cancelled) setIsLoading(false);
       } catch (err) {
         if (!cancelled) {
-          setError(err instanceof Error ? err.message : 'Failed to load globe');
+          setError(err instanceof Error ? err.message : "Failed to load globe");
           setIsLoading(false);
         }
       }
@@ -355,111 +341,63 @@ export const Globe: React.FC<GlobeProps> = ({
     [landDotRows, landMapUrl, DEG2RAD],
   );
 
-  const cleanup = useCallback(() => {
-    if (animationIntervalRef.current) {
-      clearInterval(animationIntervalRef.current);
-      animationIntervalRef.current = null;
-    }
-    if (animationFrameRef.current) {
-      cancelAnimationFrame(animationFrameRef.current);
-      animationFrameRef.current = null;
-    }
-    animationTimeoutsRef.current.forEach(clearTimeout);
-    animationTimeoutsRef.current = [];
-    isAnimatingRef.current = false;
-
-    if (globeRef.current) {
-      try {
-        const scene = globeRef.current.scene();
-        if (scene) {
-          scene.traverse(
-            (object: {
-              geometry?: { dispose: () => void };
-              material?:
-                | {
-                    dispose: () => void;
-                    map?: { dispose: () => void };
-                    lightMap?: { dispose: () => void };
-                    bumpMap?: { dispose: () => void };
-                    normalMap?: { dispose: () => void };
-                    specularMap?: { dispose: () => void };
-                    envMap?: { dispose: () => void };
-                  }
-                | Array<{
-                    dispose: () => void;
-                    map?: { dispose: () => void };
-                    lightMap?: { dispose: () => void };
-                    bumpMap?: { dispose: () => void };
-                    normalMap?: { dispose: () => void };
-                    specularMap?: { dispose: () => void };
-                    envMap?: { dispose: () => void };
-                  }>;
-            }) => {
-              if (object.geometry) {
-                object.geometry.dispose();
-              }
-              if (object.material) {
-                if (Array.isArray(object.material)) {
-                  object.material.forEach((material) => {
-                    if (material.map) material.map.dispose();
-                    if (material.lightMap) material.lightMap.dispose();
-                    if (material.bumpMap) material.bumpMap.dispose();
-                    if (material.normalMap) material.normalMap.dispose();
-                    if (material.specularMap) material.specularMap.dispose();
-                    if (material.envMap) material.envMap.dispose();
-                    material.dispose();
-                  });
-                } else {
-                  if (object.material.map) object.material.map.dispose();
-                  if (object.material.lightMap)
-                    object.material.lightMap.dispose();
-                  if (object.material.bumpMap)
-                    object.material.bumpMap.dispose();
-                  if (object.material.normalMap)
-                    object.material.normalMap.dispose();
-                  if (object.material.specularMap)
-                    object.material.specularMap.dispose();
-                  if (object.material.envMap) object.material.envMap.dispose();
-                  object.material.dispose();
-                }
-              }
-            },
-          );
-        }
-      } catch (e) {
-        console.warn("Error during Three.js cleanup:", e);
-      }
-      globeRef.current = null;
-    }
-
-    if (containerRef.current) {
-      while (containerRef.current.firstChild) {
-        containerRef.current.removeChild(containerRef.current.firstChild);
-      }
-    }
-
-    isInitializingRef.current = false;
-  }, []);
-
   useEffect(() => {
     if (isLoading || error || !containerRef.current || !window.Globe) return;
+    const container = containerRef.current;
+    const GlobeCtor = window.Globe;
 
-    if (isInitializingRef.current) return;
-    isInitializingRef.current = true;
+    // Visual signature. landMapUrl is excluded (it's a constant ~21KB data URL,
+    // and landDotRows already captures any geometry difference).
+    const cacheKey = JSON.stringify([
+      width,
+      height,
+      deferredPrimaryColor,
+      deferredNeutralColor,
+      deferredAtmosphereColor,
+      deferredGlobeColor,
+      showAtmosphere,
+      autoRotateSpeed,
+      enableZoom,
+      interactive,
+      arcCount,
+      arcInterval,
+      arcAnimationDuration,
+      cameraAltitude,
+      landDotRows,
+      pointSize,
+      pointResolution,
+      atmosphereAltitude,
+      globeOpacity,
+    ]);
 
-    if (cleanupFnRef.current) {
-      cleanupFnRef.current();
-      cleanupFnRef.current = null;
+    // --- Cache hit: re-attach the already-built globe, no rebuild. ---
+    const cached = globeCache.get(cacheKey);
+    if (cached) {
+      container.appendChild(cached.holder);
+      globeRef.current = cached.world;
+      cached.startAnim();
+      setIsGlobeVisible(true);
+      return () => {
+        cached.stopAnim();
+        if (cached.holder.parentElement === container) {
+          container.removeChild(cached.holder);
+        }
+      };
     }
-    cleanup();
 
-    const initGlobeDeferred = () => {
-      if (!containerRef.current || !window.Globe) {
-        isInitializingRef.current = false;
-        return;
-      }
+    // --- Cache miss: build a fresh globe (deferred to idle). ---
+    let disposed = false;
+    let idleId: number | null = null;
+    let detach: (() => void) | null = null;
 
-      const container = containerRef.current;
+    const build = () => {
+      if (disposed || !window.Globe) return;
+
+      const holder = document.createElement("div");
+      holder.style.width = "100%";
+      holder.style.height = "100%";
+      container.appendChild(holder);
+
       const containerWidth =
         width === "auto"
           ? container.parentElement?.getBoundingClientRect().width || 600
@@ -471,10 +409,11 @@ export const Globe: React.FC<GlobeProps> = ({
       landMapImage.src = landMapUrl;
 
       landMapImage.onload = () => {
+        if (disposed || !window.Globe) {
+          if (holder.parentElement) holder.parentElement.removeChild(holder);
+          return;
+        }
         const dots = processLandMap(landMapImage);
-        dotsRef.current = dots;
-
-        if (!window.Globe) return;
 
         const createColorTexture = (color: string) => {
           const canvas = document.createElement("canvas");
@@ -488,8 +427,7 @@ export const Globe: React.FC<GlobeProps> = ({
           return canvas.toDataURL();
         };
 
-        const world = window
-          .Globe()
+        const world = GlobeCtor()
           .globeImageUrl(createColorTexture(deferredGlobeColor))
           .backgroundColor("rgba(0, 0, 0, 0)")
           .showAtmosphere(showAtmosphere)
@@ -517,7 +455,7 @@ export const Globe: React.FC<GlobeProps> = ({
           .ringColor(() => (t: number) => `rgba(59, 130, 246, ${1 - t})`)
           .ringMaxRadius(2)
           .ringPropagationSpeed(2)
-          .ringRepeatPeriod(0)(container);
+          .ringRepeatPeriod(0)(holder);
 
         const globeMat = world.globeMaterial();
         globeMat.transparent = true;
@@ -525,16 +463,13 @@ export const Globe: React.FC<GlobeProps> = ({
         globeMat.shininess = 0.5;
 
         world.pointOfView({ altitude: cameraAltitude });
-        world.controls().autoRotate = true;
         world.controls().autoRotateSpeed = autoRotateSpeed;
         world.controls().enabled = interactive;
         world.controls().enableZoom = enableZoom;
 
         world.onGlobeClick(
           (coords: { lat: number; lng: number }, event: MouseEvent) => {
-            if (onGlobeClickRef.current) {
-              onGlobeClickRef.current(coords, event);
-            }
+            onGlobeClickRef.current?.(coords, event);
           },
         );
 
@@ -542,145 +477,146 @@ export const Globe: React.FC<GlobeProps> = ({
 
         requestAnimationFrame(() => {
           requestAnimationFrame(() => {
-            setIsGlobeVisible(true);
+            if (!disposed) setIsGlobeVisible(true);
           });
         });
 
+        // --- Animation lifecycle (re-startable so it can pause while cached). ---
+        let intervalId: number | null = null;
+        let frameId: number | null = null;
+        let animating = false;
+        let visible = true;
+        const timeouts: number[] = [];
+
         const animateArcs = () => {
-          if (
-            !globeRef.current ||
-            dotsRef.current.length === 0 ||
-            isAnimatingRef.current
-          )
-            return;
-
-          if (!isVisibleRef.current) return;
-
-          isAnimatingRef.current = true;
-
-          animationFrameRef.current = requestAnimationFrame(() => {
-            if (!globeRef.current || dotsRef.current.length === 0) {
-              isAnimatingRef.current = false;
-              return;
-            }
-
-            const currentDots = dotsRef.current;
-            const selectedDots = getRandomSample(currentDots, arcCount * 2);
-
+          if (!dots.length || animating || !visible) return;
+          animating = true;
+          frameId = requestAnimationFrame(() => {
+            const selected = getRandomSample(dots, arcCount * 2);
             const arcs: Arc[] = Array.from({ length: arcCount }, (_, i) => ({
-              startLat: selectedDots[i].lat,
-              startLng: selectedDots[i].lng,
-              endLat: selectedDots[i + arcCount].lat,
-              endLng: selectedDots[i + arcCount].lng,
+              startLat: selected[i].lat,
+              startLng: selected[i].lng,
+              endLat: selected[i + arcCount].lat,
+              endLng: selected[i + arcCount].lng,
             }));
-
-            const labels: Label[] = Array.from(
-              { length: arcCount },
-              (_, i) => ({
-                lat: selectedDots[i + arcCount].lat,
-                lng: selectedDots[i + arcCount].lng,
-              }),
-            );
-
+            const labels: Label[] = Array.from({ length: arcCount }, (_, i) => ({
+              lat: selected[i + arcCount].lat,
+              lng: selected[i + arcCount].lng,
+            }));
             const rings: Ring[] = Array.from({ length: arcCount }, (_, i) => ({
-              lat: selectedDots[i + arcCount].lat,
-              lng: selectedDots[i + arcCount].lng,
+              lat: selected[i + arcCount].lat,
+              lng: selected[i + arcCount].lng,
             }));
-
-            globeRef.current.arcsData(arcs).labelsData(labels);
-
-            const ringTimeout = setTimeout(() => {
-              if (globeRef.current) {
-                globeRef.current.ringsData(rings);
-              }
-              isAnimatingRef.current = false;
+            world.arcsData(arcs).labelsData(labels);
+            const rt = window.setTimeout(() => {
+              world.ringsData(rings);
+              animating = false;
             }, arcAnimationDuration * 1.5);
-            animationTimeoutsRef.current.push(ringTimeout);
+            timeouts.push(rt);
           });
         };
 
-        const initialTimeout = setTimeout(() => {
-          animateArcs();
-        }, 500);
-        animationTimeoutsRef.current.push(initialTimeout);
-
-        animationIntervalRef.current = setInterval(animateArcs, arcInterval);
-
-        let resizeTimeout: NodeJS.Timeout;
-        const handleResize = () => {
-          clearTimeout(resizeTimeout);
-          resizeTimeout = setTimeout(() => {
-            if (!globeRef.current || !container.parentElement) return;
-            const newWidth =
-              width === "auto"
-                ? container.parentElement.getBoundingClientRect().width
-                : width;
-            const newHeight = height === "auto" ? newWidth : height;
-            globeRef.current.width(newWidth);
-            globeRef.current.height(newHeight);
-          }, 150);
+        const startAnim = () => {
+          visible = true;
+          try {
+            world.controls().autoRotate = true;
+          } catch {
+            // controls may be gone if context was lost
+          }
+          if (intervalId != null) return;
+          const t = window.setTimeout(animateArcs, 500);
+          timeouts.push(t);
+          intervalId = window.setInterval(animateArcs, arcInterval);
         };
 
+        const stopAnim = () => {
+          if (intervalId != null) {
+            clearInterval(intervalId);
+            intervalId = null;
+          }
+          if (frameId != null) {
+            cancelAnimationFrame(frameId);
+            frameId = null;
+          }
+          timeouts.forEach(clearTimeout);
+          timeouts.length = 0;
+          animating = false;
+          try {
+            world.controls().autoRotate = false;
+          } catch {
+            // ignore
+          }
+        };
+
+        startAnim();
+
+        // Resize: track the holder's live parent (it moves between mounts).
+        let resizeTimeout: number | undefined;
+        const handleResize = () => {
+          window.clearTimeout(resizeTimeout);
+          resizeTimeout = window.setTimeout(() => {
+            const host = holder.parentElement;
+            if (!host) return;
+            const nw =
+              width === "auto" ? host.getBoundingClientRect().width : width;
+            const nh = height === "auto" ? nw : height;
+            world.width(nw);
+            world.height(nh);
+          }, 150);
+        };
         window.addEventListener("resize", handleResize);
 
-        let resizeObserver: ResizeObserver | null = null;
-        if ("ResizeObserver" in window && container.parentElement) {
-          resizeObserver = new ResizeObserver(handleResize);
-          resizeObserver.observe(container.parentElement);
-        }
-
+        // Pause auto-rotation when the globe scrolls offscreen.
         let observer: IntersectionObserver | null = null;
         if ("IntersectionObserver" in window) {
           observer = new IntersectionObserver(
             (entries) => {
               entries.forEach((entry) => {
-                isVisibleRef.current = entry.isIntersecting;
-                if (globeRef.current) {
-                  const controls = globeRef.current.controls();
-                  controls.autoRotate = entry.isIntersecting;
+                visible = entry.isIntersecting;
+                try {
+                  world.controls().autoRotate = entry.isIntersecting;
+                } catch {
+                  // ignore
                 }
               });
             },
             { threshold: 0.1 },
           );
-          observer.observe(container);
+          observer.observe(holder);
         }
 
-        const localCleanup = () => {
-          window.removeEventListener("resize", handleResize);
-          if (resizeTimeout) {
-            clearTimeout(resizeTimeout);
-          }
-          if (observer) {
-            observer.disconnect();
-          }
-          if (resizeObserver) {
-            resizeObserver.disconnect();
-          }
-          cleanup();
+        const entry: GlobeCacheEntry = { holder, world, startAnim, stopAnim };
+        globeCache.set(cacheKey, entry);
+
+        detach = () => {
+          stopAnim();
+          if (holder.parentElement) holder.parentElement.removeChild(holder);
         };
 
-        cleanupFnRef.current = localCleanup;
-
-        onReady?.();
+        onReadyRef.current?.();
       };
 
       landMapImage.onerror = () => {
-        setError("Failed to load land map image");
-        isInitializingRef.current = false;
+        if (!disposed) setError("Failed to load land map image");
       };
     };
 
-    if ("requestIdleCallback" in window) {
-      requestIdleCallback(initGlobeDeferred, { timeout: 500 });
+    if (typeof window.requestIdleCallback === "function") {
+      idleId = window.requestIdleCallback(build, { timeout: 500 });
     } else {
-      setTimeout(initGlobeDeferred, 0);
+      idleId = window.setTimeout(build, 0) as unknown as number;
     }
+
     return () => {
-      if (cleanupFnRef.current) {
-        cleanupFnRef.current();
-        cleanupFnRef.current = null;
+      disposed = true;
+      if (idleId != null) {
+        if (typeof window.cancelIdleCallback === "function") {
+          window.cancelIdleCallback(idleId);
+        } else {
+          window.clearTimeout(idleId);
+        }
       }
+      if (detach) detach();
     };
   }, [
     isLoading,
@@ -699,10 +635,9 @@ export const Globe: React.FC<GlobeProps> = ({
     arcInterval,
     arcAnimationDuration,
     cameraAltitude,
+    landDotRows,
     landMapUrl,
     processLandMap,
-    onReady,
-    cleanup,
     pointSize,
     pointResolution,
     atmosphereAltitude,

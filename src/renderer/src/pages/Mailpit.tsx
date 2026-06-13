@@ -1,3 +1,4 @@
+import { Trans, useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
 import { useAction } from '@/lib/action';
 import { MAILPIT_UI_PORT } from '@/lib/constants';
@@ -5,6 +6,7 @@ import { devmgr } from '@/lib/devmgr';
 import { bundledById, runtimeStatus, useStore } from '@/lib/store';
 
 export function Mailpit() {
+  const { t } = useTranslation();
   const { runAction } = useAction();
   const { status } = useStore();
   const url = `http://127.0.0.1:${MAILPIT_UI_PORT}`;
@@ -16,7 +18,7 @@ export function Mailpit() {
     <div className="flex h-full flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-text-muted">
-          Mailpit inbox — catches all app email (point your app at SMTP <code>127.0.0.1:1025</code>).
+          <Trans i18nKey="mailpit.intro" components={{ code: <code /> }} />
         </p>
         <Button
           size="sm"
@@ -28,21 +30,21 @@ export function Mailpit() {
             })
           }
         >
-          Open in browser
+          {t('mailpit.openInBrowser')}
         </Button>
       </div>
 
       {!installed ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-text-muted">
-          Mailpit isn’t installed yet. Install it from <strong>Services → Mailpit</strong>.
+          <Trans i18nKey="mailpit.notInstalled" components={{ strong: <strong /> }} />
         </div>
       ) : !running ? (
         <div className="rounded-xl border border-dashed border-border p-8 text-center text-sm text-text-muted">
-          Mailpit isn’t running. Start it from the Dashboard or Services, then this inbox loads here.
+          {t('mailpit.notRunning')}
         </div>
       ) : (
         <iframe
-          title="Mailpit inbox"
+          title={t('mailpit.inboxTitle')}
           src={url}
           className="min-h-0 w-full flex-1 rounded-xl border border-border bg-white"
         />

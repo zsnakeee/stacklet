@@ -303,15 +303,24 @@ export class Orchestrator {
     await this.stopAllOnQuit();
     await this.stopIsolatedPhp();
 
-    try {
-      fs.mkdirSync(parent, { recursive: true });
-    } catch (err) {
-      const e = err as NodeJS.ErrnoException;
-      const why =
-        e.code === 'EPERM' || e.code === 'EACCES'
-          ? 'permission denied — pick a folder you can write to, or run Stacklet as administrator.'
-          : e.message;
-      throw new Error(`Can't create ${parent}: ${why}`);
+    // Only create the parent when it's actually missing. For a top-level target
+    // like F:\Stacklet the parent IS the drive root (F:\), and
+    // fs.mkdirSync('F:\\', { recursive: true }) throws EPERM on Windows — mkdir
+    // on an existing drive root yields EPERM, which recursive mode does NOT
+    // swallow (it only ignores EEXIST). That surfaced as a bogus
+    // "permission denied" even on a perfectly writable drive. The root already
+    // exists (verified above), so skip the call entirely in that case.
+    if (!fs.existsSync(parent)) {
+      try {
+        fs.mkdirSync(parent, { recursive: true });
+      } catch (err) {
+        const e = err as NodeJS.ErrnoException;
+        const why =
+          e.code === 'EPERM' || e.code === 'EACCES'
+            ? 'permission denied — pick a folder you can write to, or run Stacklet as administrator.'
+            : e.message;
+        throw new Error(`Can't create ${parent}: ${why}`);
+      }
     }
     try {
       fs.renameSync(current, target);

@@ -1,9 +1,11 @@
+import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/primitives';
 import { useAction } from '@/lib/action';
 import { bundledById, useStore } from '@/lib/store';
 import { devmgr } from '@/lib/devmgr';
 
 export function TopBar({ title }: { title: string }) {
+  const { t } = useTranslation();
   const { runAction } = useAction();
   const {
     status,
@@ -108,33 +110,33 @@ export function TopBar({ title }: { title: string }) {
             size="sm"
             onClick={syncHosts}
             disabled={bootstrapping}
-            title="Update Windows hosts file when entries are missing"
+            title={t('topbar.syncHostsTitle')}
           >
-            Sync hosts
+            {t('topbar.syncHosts')}
           </Button>
           <Button
             size="sm"
             onClick={reapply}
             disabled={bootstrapping || !nginxInstalled}
-            title="Regenerate nginx/PHP configs"
+            title={t('topbar.reapplyTitle')}
           >
-            Re-apply
+            {t('topbar.reapply')}
           </Button>
           <Button
             size="sm"
             onClick={reloadAll}
             disabled={bootstrapping || !hasAnyInstalled}
-            title="Regenerate all configs + HTTPS certs and restart every running service"
+            title={t('topbar.reloadAllTitle')}
           >
-            Reload all
+            {t('topbar.reloadAll')}
           </Button>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="primary" onClick={startAll} disabled={bootstrapping || !hasAnyInstalled}>
-            Start all
+            {t('topbar.startAll')}
           </Button>
           <Button onClick={stopAll} disabled={bootstrapping || !hasAnyInstalled}>
-            Stop all
+            {t('topbar.stopAll')}
           </Button>
         </div>
       </div>

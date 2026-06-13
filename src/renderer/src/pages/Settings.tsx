@@ -7,13 +7,12 @@ import {
   Hint,
   Input,
   Section,
-  Select,
   Toggle,
 } from '@/components/ui/primitives';
+import { LanguageMenu } from '@/components/shell/LanguageMenu';
 import { SETTINGS_SERVICES } from '@/lib/constants';
 import { useAction } from '@/lib/action';
 import { devmgr } from '@/lib/devmgr';
-import { LANGUAGES, useLanguage, type LangCode } from '@/lib/i18n';
 import { useStore } from '@/lib/store';
 import { useToast } from '@/lib/toast';
 
@@ -31,7 +30,6 @@ export function Settings() {
   const { runAction } = useAction();
   const toast = useToast();
   const { t } = useTranslation();
-  const { language, setLanguage } = useLanguage();
   const { status, config, refresh } = useStore();
 
   const [envInfo, setEnvInfo] = useState<EnvInfo>({ candidates: [], selected: [], paths: [] });
@@ -117,18 +115,15 @@ export function Settings() {
         <Hint>{t('settings.language.hint')}</Hint>
         <div className="mt-3">
           <Field label={t('settings.language.label')} inline>
-            <Select
-              className="min-w-44"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value as LangCode)}
-            >
-              {LANGUAGES.map((l) => (
-                <option key={l.code} value={l.code}>
-                  {l.label}
-                </option>
-              ))}
-            </Select>
+            <LanguageMenu align="start" />
           </Field>
+        </div>
+      </Section>
+
+      <Section title={t('settings.about.title')}>
+        <div className="flex items-center justify-between py-1 text-sm">
+          <span className="text-text-muted">{t('settings.about.version')}</span>
+          <span className="font-mono text-text-secondary">v{__APP_VERSION__}</span>
         </div>
       </Section>
 
@@ -167,6 +162,25 @@ export function Settings() {
           <Hint className="mt-1">
             Pick an empty folder — Stacklet stops services, moves its data there, then asks you to
             restart.
+          </Hint>
+        </div>
+        <div className="mt-3">
+          <Button
+            size="sm"
+            onClick={() =>
+              runAction({
+                key: 'open-error-log',
+                label: 'Open error log',
+                successToast: false,
+                run: () => devmgr.diagnostics.openLog(),
+              })
+            }
+          >
+            Open error log
+          </Button>
+          <Hint className="mt-1">
+            Opens app.log, where Stacklet records crashes and errors (from the app and its
+            background engine) for later diagnosis.
           </Hint>
         </div>
         <div className="mt-3 flex items-center gap-2">
