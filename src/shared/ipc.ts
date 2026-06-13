@@ -21,6 +21,18 @@ export type BootstrapPhase =
   | 'finishing'
   | 'ready';
 
+/** An error captured in the renderer and forwarded to the main-process log file. */
+export interface RendererErrorReport {
+  /** Where it came from: a thrown error, a rejected promise, console.error, or React. */
+  source: 'window.onerror' | 'unhandledrejection' | 'console.error' | 'react';
+  message: string;
+  stack?: string;
+  /** Originating URL/route (window.location.hash) for context. */
+  url?: string;
+  /** React component stack, when source === 'react'. */
+  componentStack?: string;
+}
+
 export interface StackletAPI {
   status: () => Promise<unknown>;
   statusLive: () => Promise<{
@@ -193,6 +205,14 @@ export interface StackletAPI {
   };
   shell: {
     openExternal: (url: string) => Promise<void>;
+  };
+  diagnostics: {
+    /** Forward a renderer-side error to the main-process app.log file. */
+    report: (error: RendererErrorReport) => void;
+    /** Reveal the app.log error file in the OS file manager. */
+    openLog: () => Promise<void>;
+    /** Absolute path to the app.log file (null if it can't be resolved). */
+    logPath: () => Promise<string | null>;
   };
   composer: {
     status: () => Promise<{ installed: boolean; dir: string; pharPath: string }>;

@@ -2,8 +2,15 @@ import { defineConfig, type UserConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 
 const rendererRoot = path.resolve(__dirname, 'src/renderer');
+
+// App version baked in at build time so the renderer can show it (e.g. Settings)
+// without an extra IPC round-trip. `npm start` rebuilds, so this stays current.
+const pkg = JSON.parse(
+  readFileSync(path.resolve(__dirname, 'package.json'), 'utf8'),
+) as { version: string };
 
 // The renderer is loaded by Electron over file:// (see src/main/index.ts), so
 // assets must be referenced relatively (base: './') and emitted as external,
@@ -11,6 +18,9 @@ const rendererRoot = path.resolve(__dirname, 'src/renderer');
 export default defineConfig({
   root: rendererRoot,
   base: './',
+  define: {
+    __APP_VERSION__: JSON.stringify(pkg.version),
+  },
   plugins: [react(), tailwindcss()],
   resolve: {
     alias: {

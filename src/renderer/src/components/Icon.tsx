@@ -90,6 +90,17 @@ const PATHS: Record<string, { body: ReactNode; fill?: boolean }> = {
   },
   chevronLeft: { body: <polyline points="15 18 9 12 15 6" /> },
   chevronRight: { body: <polyline points="9 18 15 12 9 6" /> },
+  chevronDown: { body: <polyline points="6 9 12 15 18 9" /> },
+  check: { body: <polyline points="20 6 9 17 4 12" /> },
+  language: {
+    body: (
+      <>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M2 12h20" />
+        <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+      </>
+    ),
+  },
   mail: {
     body: (
       <>

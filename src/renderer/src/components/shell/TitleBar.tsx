@@ -2,8 +2,8 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { devmgr } from '@/lib/devmgr';
 import { useTheme } from '@/lib/theme';
-import { LANGUAGES, useLanguage, type LangCode } from '@/lib/i18n';
 import { Icon } from '@/components/Icon';
+import { LanguageMenu } from '@/components/shell/LanguageMenu';
 import { cn } from '@/lib/utils';
 
 function ControlButton({
@@ -37,7 +37,6 @@ export function TitleBar() {
   const [maximized, setMaximized] = useState(false);
   const { theme, toggle } = useTheme();
   const { t } = useTranslation();
-  const { language, setLanguage } = useLanguage();
 
   useEffect(() => devmgr.window.onMaximized?.(setMaximized), []);
 
@@ -52,19 +51,7 @@ export function TitleBar() {
         </span>
       </div>
       <div className="flex h-full items-center">
-        <select
-          aria-label={t('titlebar.language')}
-          title={t('titlebar.language')}
-          value={language}
-          onChange={(e) => setLanguage(e.target.value as LangCode)}
-          className="app-no-drag mx-1 h-7 rounded-md border border-border bg-transparent px-1.5 text-xs text-text-secondary transition-colors hover:text-foreground focus-visible:outline-none"
-        >
-          {LANGUAGES.map((l) => (
-            <option key={l.code} value={l.code}>
-              {l.code.toUpperCase()}
-            </option>
-          ))}
-        </select>
+        <LanguageMenu className="mx-1" />
         <button
           type="button"
           title={theme === 'dark' ? t('titlebar.toLight') : t('titlebar.toDark')}

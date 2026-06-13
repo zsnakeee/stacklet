@@ -1,8 +1,9 @@
 import { lazy, Suspense, useState } from 'react';
 import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { AppBackground } from '@/components/shell/AppBackground';
+import Preloader from '@/components/react-bits/preloader';
 import { TitleBar } from '@/components/shell/TitleBar';
 import { Sidebar } from '@/components/shell/Sidebar';
 import { TopBar } from '@/components/shell/TopBar';
@@ -29,7 +30,11 @@ const Settings = lazy(() =>
 );
 
 function PageFallback() {
-  return <div className="min-h-[12rem] animate-pulse rounded-xl bg-surface/30" aria-hidden />;
+  return (
+    <div className="flex min-h-[12rem] items-center justify-center" aria-hidden>
+      <span className="size-6 animate-spin rounded-full border-2 border-primary/25 border-t-primary" />
+    </div>
+  );
 }
 
 function pageTitle(pathname: string, status: Status | null, t: TFunction): string {
@@ -52,12 +57,13 @@ function pageTitle(pathname: string, status: Status | null, t: TFunction): strin
 }
 
 function BootErrorBanner({ message }: { message: string }) {
+  const { t } = useTranslation();
   return (
     <div role="alert" className="border-b border-danger/40 bg-danger/10 px-6 py-4 text-sm">
-      <strong className="text-danger">Stacklet failed to start</strong>
+      <strong className="text-danger">{t('boot.failedTitle')}</strong>
       <pre className="mt-2 whitespace-pre-wrap text-text-secondary">{message}</pre>
       <p className="mt-2 text-text-muted">
-        Try rebuilding (<code>npm run build</code>) and restart. Open DevTools for details.
+        <Trans i18nKey="boot.rebuildHint" components={{ code: <code /> }} />
       </p>
     </div>
   );
@@ -67,7 +73,7 @@ const SIDEBAR_KEY = 'stacklet-sidebar-collapsed';
 
 function Layout() {
   const location = useLocation();
-  const { status, bootError } = useStore();
+  const { status, bootError, autostart } = useStore();
   const { t } = useTranslation();
   const title = pageTitle(location.pathname, status, t);
   const [collapsed, setCollapsed] = useState(() => {
@@ -89,7 +95,54 @@ function Layout() {
     });
   };
 
+  // Keep the React Bits preloader up until the first status payload arrives (or
+  // boot fails), surfacing the live engine bootstrap message while we wait. Its
+  // curtain animation reveals the shell once loading completes.
+  const loading = status === null && bootError === null;
+
   return (
+    <Preloader
+      loading={loading}
+      position="fixed"
+      zIndex={60}
+      duration={1600}
+      customContent={(progress) => (
+        <div
+          className="flex h-full w-full flex-col items-center justify-center gap-8 bg-[#090c0e] transition-opacity duration-300"
+          style={{ opacity: progress >= 100 ? 0 : 1 }}
+        >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                'radial-gradient(55% 45% at 50% 38%, rgba(45,212,170,0.14), transparent 70%)',
+            }}
+          />
+          <div className="relative flex flex-col items-center gap-2.5">
+            <div className="text-5xl font-bold tracking-tight text-white">
+              Stack<span className="text-[#2dd4aa]">let</span>
+            </div>
+            <p className="text-[11px] uppercase tracking-[0.32em] text-white/35">
+              Local dev stack
+            </p>
+          </div>
+          <span
+            aria-hidden
+            className="relative size-9 animate-spin rounded-full border-2 border-white/12 border-t-[#2dd4aa]"
+          />
+          <div className="relative flex w-56 flex-col items-center gap-2.5">
+            <div className="h-[3px] w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-[#2dd4aa] to-[#60a5fa] transition-[width] duration-200 ease-out"
+                style={{ width: `${Math.max(8, progress)}%` }}
+              />
+            </div>
+            <p className="h-4 text-[11px] text-white/45">{autostart || 'Starting…'}</p>
+          </div>
+        </div>
+      )}
+    >
     <div className="relative flex h-screen flex-col overflow-hidden bg-background">
       <AppBackground />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
@@ -117,6 +170,7 @@ function Layout() {
       </div>
       </div>
     </div>
+    </Preloader>
   );
 }
 
