@@ -3,6 +3,7 @@ import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { AppBackground } from '@/components/shell/AppBackground';
+import { GlobalProgressBar } from '@/components/shell/GlobalProgressBar';
 import Preloader from '@/components/react-bits/preloader';
 import { TitleBar } from '@/components/shell/TitleBar';
 import { Sidebar } from '@/components/shell/Sidebar';
@@ -162,6 +163,7 @@ function Layout() {
       )}
     >
     <div className="relative flex h-screen flex-col overflow-hidden bg-background">
+      <GlobalProgressBar />
       <AppBackground />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
       <TitleBar />
