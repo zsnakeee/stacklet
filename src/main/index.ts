@@ -10,6 +10,7 @@ import {
   shutdownEngineOnQuit,
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
+import { checkForUpdatesOnLaunch, registerUpdaterIpc } from './updater';
 import { getDataDir, migrateLegacyDataDir } from '../shared/paths';
 import { BRAND, logPrefix, readEnv } from '../shared/brand';
 import { isElevated } from '../helper/elevate';
@@ -122,18 +123,20 @@ function registerWindowIpc(getWindow: () => BrowserWindow | null): void {
 
 function readGeneralPrefs(): {
   startMinimized: boolean;
-  startMaximized: boolean;
+  closeToTray: boolean;
   launchOnLogin: boolean;
 } {
   try {
     const general = loadConfig().general;
     return {
       startMinimized: general.start_minimized === true,
-      startMaximized: general.start_maximized === true,
+      // Default true: closing keeps Stacklet in the tray (it manages background
+      // services). Only exit on close when the user explicitly opts out.
+      closeToTray: general.close_to_tray !== false,
       launchOnLogin: general.launch_on_login === true,
     };
   } catch {
-    return { startMinimized: false, startMaximized: false, launchOnLogin: false };
+    return { startMinimized: false, closeToTray: true, launchOnLogin: false };
   }
 }
 
@@ -182,17 +185,20 @@ function createWindow(prefs: ReturnType<typeof readGeneralPrefs>): BrowserWindow
     win.webContents.send('stacklet:window:maximized', false);
   });
   win.on('close', (e) => {
-    if (!quitting) {
+    if (quitting) return;
+    // Re-read the pref so a change in Settings takes effect without a restart.
+    if (readGeneralPrefs().closeToTray) {
       e.preventDefault();
       win.hide();
+      return;
     }
+    // User chose to exit on close: let the window close and quit the whole app
+    // (graceful engine shutdown runs in the before-quit handler).
+    app.quit();
   });
   win.on('closed', () => {
     mainWindow = null;
   });
-  if (prefs.startMaximized && !prefs.startMinimized) {
-    win.maximize();
-  }
   return win;
 }
 
@@ -218,6 +224,7 @@ app.whenReady().then(() => {
   const prefs = readGeneralPrefs();
   registerEngineIpc(getWindow);
   registerWindowIpc(getWindow);
+  registerUpdaterIpc(getWindow);
   try {
     app.setLoginItemSettings({ openAtLogin: prefs.launchOnLogin });
   } catch {
@@ -228,6 +235,7 @@ app.whenReady().then(() => {
   // Paint the window first; engine init + autostart can block the main thread.
   mainWindow.webContents.once('did-finish-load', () => {
     void bootstrapEngineOnLaunch(getWindow);
+    checkForUpdatesOnLaunch(getWindow);
   });
 
   app.on('activate', () => {

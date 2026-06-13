@@ -1,5 +1,10 @@
 ﻿import { contextBridge, ipcRenderer } from 'electron';
-import type { BootstrapPhase, InstallProgressPayload, StackletAPI } from '../shared/ipc';
+import type {
+  BootstrapPhase,
+  InstallProgressPayload,
+  StackletAPI,
+  UpdateStatus,
+} from '../shared/ipc';
 
 // Must match BRAND.windowApi / BRAND.legacySlug in src/shared/brand.ts.
 // Do not import brand here — Electron's sandboxed preload cannot require app modules.
@@ -177,7 +182,20 @@ const stackletAPI: StackletAPI = {
     openPath: (targetPath) => ipcRenderer.invoke('stacklet:settings:openPath', targetPath),
     relocateDataDir: (newDir) =>
       ipcRenderer.invoke('stacklet:settings:relocateDataDir', newDir),
+    useExistingDataDir: (dir) =>
+      ipcRenderer.invoke('stacklet:settings:useExistingDataDir', dir),
     setProjectsDir: (dir) => ipcRenderer.invoke('stacklet:settings:setProjectsDir', dir),
+  },
+  update: {
+    current: () => ipcRenderer.invoke('stacklet:update:current'),
+    check: () => ipcRenderer.invoke('stacklet:update:check'),
+    download: () => ipcRenderer.invoke('stacklet:update:download'),
+    install: () => ipcRenderer.invoke('stacklet:update:install'),
+    onStatus: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, status: UpdateStatus) => callback(status);
+      ipcRenderer.on('stacklet:update:status', handler);
+      return () => ipcRenderer.removeListener('stacklet:update:status', handler);
+    },
   },
   node: {
     nvmStatus: () => ipcRenderer.invoke('stacklet:node:nvmStatus'),

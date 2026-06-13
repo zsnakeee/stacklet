@@ -55,7 +55,7 @@ export interface AppConfig {
     path_in_env?: boolean;
     path_env_selected?: string[];
     start_minimized?: boolean;
-    start_maximized?: boolean;
+    close_to_tray?: boolean;
     autostart?: boolean;
     launch_on_login?: boolean;
     xdebug?: boolean;
