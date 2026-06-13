@@ -17,11 +17,17 @@ function writeCommandLauncher(
   pathDirs: string[],
   command: string,
   title: string,
+  cmderInit?: string,
 ): string {
   const dir = path.join(getDataDir(), 'launchers');
   fs.mkdirSync(dir, { recursive: true });
   const file = path.join(dir, `${sanitize(key)}.bat`);
   const prepend = pathDirs.filter(Boolean).map((p) => path.normalize(p)).join(';');
+  // Keep the window open afterward. When Cmder/Clink is enabled, the persistent
+  // shell loads vendor\init.bat so it gets rich tab completion + history search
+  // (same as `cmd.exe /k vendor\init.bat`); otherwise a plain `cmd /k`.
+  const keepOpen =
+    cmderInit && fs.existsSync(cmderInit) ? `cmd /k "${cmderInit}"` : 'cmd /k';
   const lines = [
     '@echo off',
     `title ${title}`,
@@ -29,7 +35,7 @@ function writeCommandLauncher(
     prepend ? `set "PATH=${prepend};%PATH%"` : '',
     command,
     'echo.',
-    'cmd /k',
+    keepOpen,
   ].filter(Boolean);
   fs.writeFileSync(file, lines.join('\r\n'), 'utf8');
   return file;
@@ -46,6 +52,8 @@ export async function openTerminalCommand(opts: {
   pathDirs: string[];
   command: string;
   title: string;
+  /** When set (and the file exists), the kept-open shell loads this Cmder/Clink init. */
+  cmderInit?: string;
 }): Promise<void> {
   if (process.platform !== 'win32') {
     throw new Error('Opening a terminal is only supported on Windows.');
@@ -53,7 +61,14 @@ export async function openTerminalCommand(opts: {
   if (!fs.existsSync(opts.cwd)) {
     throw new Error(`Project folder not found: ${opts.cwd}`);
   }
-  const launcher = writeCommandLauncher(opts.key, opts.cwd, opts.pathDirs, opts.command, opts.title);
+  const launcher = writeCommandLauncher(
+    opts.key,
+    opts.cwd,
+    opts.pathDirs,
+    opts.command,
+    opts.title,
+    opts.cmderInit,
+  );
 
   try {
     await execFileAsync('where', ['wt.exe'], { windowsHide: true });

@@ -33,6 +33,21 @@ export interface RendererErrorReport {
   componentStack?: string;
 }
 
+/** ngrok install + auth status (auto-installed into the data dir). */
+export interface NgrokInfo {
+  installed: boolean;
+  authConfigured: boolean;
+  dir: string;
+  exePath: string;
+}
+
+/** Cmder (Clink) install status (auto-installed into the data dir). */
+export interface CmderInfo {
+  installed: boolean;
+  dir: string;
+  initBat: string;
+}
+
 export interface StackletAPI {
   status: () => Promise<unknown>;
   statusLive: () => Promise<{
@@ -218,6 +233,17 @@ export interface StackletAPI {
     status: () => Promise<{ installed: boolean; dir: string; pharPath: string }>;
     install: () => Promise<{ installed: boolean; dir: string; pharPath: string }>;
   };
+  ngrok: {
+    status: () => Promise<NgrokInfo>;
+    install: () => Promise<NgrokInfo>;
+    setAuthToken: (token: string) => Promise<NgrokInfo>;
+    onProgress: (callback: (message: string) => void) => () => void;
+  };
+  cmder: {
+    status: () => Promise<CmderInfo>;
+    install: () => Promise<CmderInfo>;
+    onProgress: (callback: (message: string) => void) => () => void;
+  };
   ssl: {
     status: () => Promise<{ trusted: boolean; caCertPath: string }>;
     trust: () => Promise<{ ok: boolean; message: string }>;
@@ -239,6 +265,7 @@ export interface StackletAPI {
         autostart?: boolean;
         launch_on_login?: boolean;
         xdebug?: boolean;
+        enhanced_terminal?: boolean;
       };
       services?: Record<string, { enabled?: boolean }>;
     }) => Promise<unknown>;

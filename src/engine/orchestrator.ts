@@ -148,6 +148,20 @@ import {
   installComposer as installComposerTool,
   type ComposerStatus,
 } from './composer';
+import {
+  ensureNgrokInstalled,
+  getNgrokConfigPath,
+  getNgrokStatus as readNgrokStatus,
+  installNgrok as installNgrokTool,
+  setNgrokAuthToken as setNgrokAuthTokenTool,
+  type NgrokStatus,
+} from './ngrok';
+import {
+  getCmderInitBat,
+  getCmderStatus as readCmderStatus,
+  installCmder as installCmderTool,
+  type CmderStatus,
+} from './cmder';
 import { collectTlsSanNames, ensureDevCerts, ensureFullChainCert } from './tls';
 import {
   ensureDataLayout,
@@ -169,6 +183,7 @@ export type AppSettingsPatch = {
     autostart?: boolean;
     launch_on_login?: boolean;
     xdebug?: boolean;
+    enhanced_terminal?: boolean;
   };
   services?: Partial<{
     nginx: { enabled?: boolean };
@@ -457,6 +472,32 @@ export class Orchestrator {
     return status;
   }
 
+  getNgrokStatus(): NgrokStatus {
+    return readNgrokStatus();
+  }
+
+  async installNgrok(onProgress?: (message: string) => void): Promise<NgrokStatus> {
+    return installNgrokTool(onProgress);
+  }
+
+  setNgrokAuthToken(token: string): NgrokStatus {
+    return setNgrokAuthTokenTool(token);
+  }
+
+  getCmderStatus(): CmderStatus {
+    return readCmderStatus();
+  }
+
+  async installCmder(onProgress?: (message: string) => void): Promise<CmderStatus> {
+    return installCmderTool(onProgress);
+  }
+
+  /** Cmder/Clink init for interactive terminals, when enabled + installed. */
+  private cmderInitForTerminal(): string | undefined {
+    if (this.config.general.enhanced_terminal === false) return undefined;
+    return readCmderStatus().installed ? getCmderInitBat() : undefined;
+  }
+
   async saveAppSettings(patch: AppSettingsPatch): Promise<DevConfig> {
     if (patch.general) {
       if (patch.general.path_in_env !== undefined) {
@@ -479,6 +520,9 @@ export class Orchestrator {
       }
       if (patch.general.xdebug !== undefined) {
         this.config.general.xdebug = patch.general.xdebug;
+      }
+      if (patch.general.enhanced_terminal !== undefined) {
+        this.config.general.enhanced_terminal = patch.general.enhanced_terminal;
       }
     }
     const stopRuntime: string[] = [];
@@ -1746,6 +1790,7 @@ export class Orchestrator {
       pathDirs: await this.sitePathDirs(site.root),
       command: 'php artisan tinker',
       title: `Tinker — ${site.name}`,
+      cmderInit: this.cmderInitForTerminal(),
     });
   }
 
@@ -1785,17 +1830,20 @@ export class Orchestrator {
 
   /**
    * Share a site publicly via ngrok (host-header rewrite to the .test vhost).
-   * Opens a terminal running ngrok — requires ngrok installed + an auth token
-   * (`ngrok config add-authtoken ...`).
+   * Auto-installs ngrok into the data dir on first use, then opens a terminal
+   * running the local ngrok with Stacklet's own config (holding the auth token).
+   * Still requires the user to have added an auth token (Settings → Sharing).
    */
   async openSiteShare(name: string): Promise<void> {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
+    const exe = await ensureNgrokInstalled();
+    const cfg = getNgrokConfigPath();
     await openTerminalCommand({
       key: `share-${site.name}`,
       cwd: site.root,
       pathDirs: [],
-      command: `ngrok http --host-header=rewrite ${site.hostname}`,
+      command: `"${exe}" http --host-header=rewrite --config "${cfg}" ${site.hostname}`,
       title: `Share — ${site.hostname}`,
     });
   }
@@ -1810,6 +1858,7 @@ export class Orchestrator {
       pathDirs: await this.sitePathDirs(site.root),
       command: `echo Stacklet terminal — ${site.name}`,
       title: `Terminal — ${site.name}`,
+      cmderInit: this.cmderInitForTerminal(),
     });
   }
 

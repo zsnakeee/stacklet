@@ -96,6 +96,23 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   );
   ipcMain.handle('stacklet:composer:status', () => getEngine().getComposerStatus());
   ipcMain.handle('stacklet:composer:install', async () => getEngine().installComposer());
+  ipcMain.handle('stacklet:ngrok:status', () => getEngine().getNgrokStatus());
+  ipcMain.handle('stacklet:ngrok:install', async () => {
+    const win = getWindow();
+    return getEngine().installNgrok((message) => {
+      win?.webContents.send('stacklet:ngrok:progress', message);
+    });
+  });
+  ipcMain.handle('stacklet:ngrok:setAuthToken', async (_e, token: string) =>
+    getEngine().setNgrokAuthToken(token),
+  );
+  ipcMain.handle('stacklet:cmder:status', () => getEngine().getCmderStatus());
+  ipcMain.handle('stacklet:cmder:install', async () => {
+    const win = getWindow();
+    return getEngine().installCmder((message) => {
+      win?.webContents.send('stacklet:cmder:progress', message);
+    });
+  });
   ipcMain.handle('stacklet:settings:openPath', async (_e, targetPath: string) => {
     const root = path.resolve(getDataDir());
     const resolved = path.resolve(targetPath);
