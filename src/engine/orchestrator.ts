@@ -103,7 +103,14 @@ import {
   resolvePhpMyAdminRoot,
 } from '../bundled/phpmyadmin-configure';
 import { getServicePortLabel, PHP_XDEBUG_PORT } from './service-ports';
-import { createLaravelProject, cloneGitProject, resolveExistingProjectPath } from './site-actions';
+import {
+  createLaravelProject,
+  createNodeProject,
+  cloneGitProject,
+  resolveExistingProjectPath,
+  type NodeFrameworkKind,
+} from './site-actions';
+import { isNodeFramework } from '../config/types';
 import {
   addRegisteredSite,
   loadSitesFromRegistry,
@@ -111,8 +118,10 @@ import {
 } from './sites-registry';
 import { applyReverbEnv, formatReverbEnvSuggestion, suggestReverbEnv } from './reverb-env';
 import type { ReverbPatch } from './reverb-ports';
+import type { DevServerPatch } from './node-dev-ports';
 import { updateRegisteredSite } from './site-config';
 import { SiteReverbManager } from './site-processes/manager';
+import { SiteDevServerManager } from './site-processes/dev-server-manager';
 import { detectReverbInstalled } from './site-processes/reverb';
 import { getSiteTld, setSiteTld } from './sites';
 import {
@@ -273,6 +282,7 @@ export class Orchestrator {
   private phpSupervisorTimer: ReturnType<typeof setInterval> | null = null;
   private phpFpmHealthFailures = 0;
   private readonly reverbManager = new SiteReverbManager();
+  private readonly devServerManager = new SiteDevServerManager();
   /** Dedicated php-cgi instances for per-site isolated (non-default) PHP versions. */
   private isolatedPhp = new Map<string, ManagedProcess>();
   /** On-demand Xdebug php-cgi (active version + Xdebug) for triggered requests. */
@@ -1050,6 +1060,7 @@ export class Orchestrator {
     }
     if (!services || services.length === 0) {
       await this.syncSiteReverb();
+      await this.syncDevServers();
     }
   }
 
@@ -1106,6 +1117,7 @@ export class Orchestrator {
     onPhase?.('finishing');
     try {
       await this.syncSiteReverb();
+      await this.syncDevServers();
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`${logPrefix()} reverb autostart:`, msg);
@@ -1122,6 +1134,7 @@ export class Orchestrator {
   async stop(services?: string[]): Promise<void> {
     if (!services || services.length === 0) {
       await this.reverbManager.stopAll();
+      await this.devServerManager.stopAll();
     }
     const targets = this.resolveServiceNames(services);
     if (targets.includes('php-fpm')) {
@@ -1142,6 +1155,7 @@ export class Orchestrator {
   async stopAllOnQuit(): Promise<void> {
     this.markPhpAutoRestart(false);
     await this.reverbManager.stopAll();
+    await this.devServerManager.stopAll();
     await this.stopIsolatedPhp();
     // Include apache (the web-server slot) so it's stopped on quit too.
     const order = ['apache', ...SERVICE_START_ORDER].reverse();
@@ -1805,13 +1819,47 @@ export class Orchestrator {
     return this.getSites();
   }
 
+  /** Scaffold a new Node/React/Next.js project and register it with a dev server. */
+  async createNodeProject(
+    name: string,
+    framework: NodeFrameworkKind,
+    onProgress?: (message: string) => void,
+  ): Promise<Site[]> {
+    const root = await createNodeProject(getProjectsDir(), name, framework, onProgress);
+    onProgress?.('Registering site and applying configuration…');
+    addRegisteredSite(name, root);
+    this.refreshSites();
+    this.autoEnableNodeDevServer(name);
+    this.refreshSites();
+    await this.apply();
+    await this.provisionSiteHostsAndSsl();
+    await this.syncDevServers();
+    onProgress?.('Done');
+    return this.getSites();
+  }
+
   async linkExistingSite(sourcePath: string, name?: string): Promise<Site[]> {
     const { name: siteName, root } = resolveExistingProjectPath(sourcePath, name);
     addRegisteredSite(siteName, root);
     this.refreshSites();
+    this.autoEnableNodeDevServer(siteName);
+    this.refreshSites();
     await this.apply();
     await this.provisionSiteHostsAndSsl();
+    await this.syncDevServers();
     return this.getSites();
+  }
+
+  /** Enable a dev server (auto-allocate a port) for a freshly added Node site. */
+  private autoEnableNodeDevServer(name: string): void {
+    const site = findSiteByName(this.sites, name);
+    if (site && isNodeFramework(site.framework) && !site.dev_server) {
+      try {
+        updateRegisteredSite(name, { dev_server: { enabled: true } });
+      } catch {
+        // best-effort — leave the dev server off if allocation/validation fails
+      }
+    }
   }
 
   /**
@@ -1938,6 +1986,7 @@ export class Orchestrator {
 
   async removeSite(name: string): Promise<Site[]> {
     await this.reverbManager.stopSite(name);
+    await this.devServerManager.stopSite(name);
     removeRegisteredSite(name);
     this.refreshSites();
     await this.apply();
@@ -1949,6 +1998,7 @@ export class Orchestrator {
     this.refreshSites();
     await this.apply();
     await this.syncSiteReverb();
+    await this.syncDevServers();
     if (enabled) await this.provisionSiteHostsAndSsl();
     return this.getSites();
   }
@@ -2019,8 +2069,11 @@ export class Orchestrator {
     const { name: siteName, root } = await cloneGitProject(getProjectsDir(), url, name);
     addRegisteredSite(siteName, root);
     this.refreshSites();
+    this.autoEnableNodeDevServer(siteName);
+    this.refreshSites();
     await this.apply();
     await this.provisionSiteHostsAndSsl();
+    await this.syncDevServers();
     return this.getSites();
   }
 
@@ -2044,6 +2097,9 @@ export class Orchestrator {
       reverbEnvSuggestionText: reverbEnvSuggestion
         ? formatReverbEnvSuggestion(reverbEnvSuggestion)
         : null,
+      isNode: isNodeFramework(site.framework),
+      devServer: site.dev_server ?? null,
+      devServerStatus: this.devServerManager.getStatus(name),
     };
   }
 
@@ -2081,6 +2137,40 @@ export class Orchestrator {
 
   private async syncSiteReverb(): Promise<void> {
     await this.reverbManager.sync(this.sites, this.config);
+  }
+
+  // ---- Node dev servers (React / Vite / Next.js / Node sites) ----
+
+  /** Enable/disable, set port, or set the npm script for a site's dev server. */
+  async setSiteDevServer(name: string, patch: DevServerPatch): Promise<Site[]> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    if (!isNodeFramework(site.framework)) {
+      throw new Error('A dev server is only available for Node/React/Next.js sites');
+    }
+    updateRegisteredSite(name, { dev_server: patch });
+    this.refreshSites();
+    await this.apply();
+    await this.syncDevServers();
+    return this.getSites();
+  }
+
+  async restartSiteDevServer(name: string): Promise<void> {
+    const site = findSiteByName(this.sites, name);
+    if (!site) throw new Error(`Site not found: ${name}`);
+    const node = await resolveSiteNodeBin(site.root, this.bundledNodeBinDir());
+    await this.devServerManager.restart(site, node.dir);
+  }
+
+  getSiteDevServerStatus(name: string) {
+    return this.devServerManager.getStatus(name);
+  }
+
+  private async syncDevServers(): Promise<void> {
+    await this.devServerManager.sync(this.sites, async (site) => {
+      const node = await resolveSiteNodeBin(site.root, this.bundledNodeBinDir());
+      return node.dir;
+    });
   }
 
   async runSiteArtisan(name: string, args: string[]): Promise<string> {

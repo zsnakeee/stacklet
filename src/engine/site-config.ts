@@ -1,4 +1,5 @@
 import { mergeReverbPatch, type ReverbPatch } from './reverb-ports';
+import { mergeDevServerPatch, type DevServerPatch } from './node-dev-ports';
 import { loadRegisteredSites, saveRegisteredSites, type RegisteredSite } from './sites-registry';
 import { effectiveHostname } from './sites';
 
@@ -8,6 +9,7 @@ export interface SitePatch {
   enabled?: boolean;
   favorite?: boolean;
   reverb?: ReverbPatch;
+  dev_server?: DevServerPatch;
   /** Document root override; null/empty clears it (back to auto-detect). */
   doc_root?: string | null;
   /** Isolated PHP version; null/empty clears it (back to default). */
@@ -85,6 +87,10 @@ export function mergeSitePatch(
   if (patch.reverb !== undefined) {
     const records = allRecords ?? [record];
     return mergeReverbPatch(next, patch.reverb, records);
+  }
+  if (patch.dev_server !== undefined) {
+    const records = allRecords ?? [record];
+    return mergeDevServerPatch(next, patch.dev_server, records);
   }
   if (patch.doc_root !== undefined) {
     if (patch.doc_root === null || patch.doc_root.trim() === '') {

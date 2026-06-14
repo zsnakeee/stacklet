@@ -1,8 +1,9 @@
 ﻿import fs from 'fs';
 import path from 'path';
-import type { Site, SiteReverbConfig } from '../config/types';
+import { isNodeFramework, type Site, type SiteDevServerConfig, type SiteReverbConfig } from '../config/types';
 import { ensureDir, getSitesManifestPath } from '../shared/paths';
 import { resolveSiteReverb } from './reverb-ports';
+import { resolveSiteDevServer } from './node-dev-ports';
 import { detectFramework, effectiveHostname, resolveDocRoot, siteHostnameFromDirName } from './sites';
 
 export interface RegisteredSite {
@@ -13,6 +14,8 @@ export interface RegisteredSite {
   enabled?: boolean;
   favorite?: boolean;
   reverb?: SiteReverbConfig;
+  /** Node dev-server config (React/Vite/Next.js/Node sites). */
+  dev_server?: SiteDevServerConfig;
   /** Override the served document root (absolute, or relative to root). */
   doc_root?: string;
   /** Isolated PHP version for this site (empty = default). */
@@ -84,6 +87,7 @@ export function registeredToSite(
   const framework = detectFramework(root);
   const records = allRecords ?? loadRegisteredSites();
   const reverb = resolveSiteReverb(record, records);
+  const dev_server = resolveSiteDevServer(record, records);
   return {
     name: record.name,
     hostname: effectiveHostname(record),
@@ -94,6 +98,7 @@ export function registeredToSite(
     favorite: record.favorite === true,
     aliases: normalizeAliasList(record.aliases),
     reverb,
+    dev_server,
     php_version: typeof record.php_version === 'string' ? record.php_version : undefined,
   };
 }
@@ -151,8 +156,11 @@ export function validateProjectRoot(sourcePath: string): string {
     throw new Error(`Path not found: ${resolved}`);
   }
   const framework = detectFramework(resolved);
+  if (isNodeFramework(framework)) return resolved; // Node/React/Next.js project
   if (framework === 'generic' && !fs.existsSync(path.join(resolved, 'public'))) {
-    throw new Error('Not a recognized Laravel/WordPress project (needs public/ or artisan)');
+    throw new Error(
+      'Not a recognized project (needs artisan, wp-config.php, package.json, or public/)',
+    );
   }
   return resolved;
 }

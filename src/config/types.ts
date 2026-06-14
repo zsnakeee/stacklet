@@ -194,12 +194,37 @@ export interface SiteReverbConfig {
   port?: number;
 }
 
+/** Site frameworks. The node-style ones are served by reverse-proxying a dev server. */
+export type SiteFramework =
+  | 'laravel'
+  | 'wordpress'
+  | 'generic'
+  | 'nextjs'
+  | 'vite'
+  | 'node';
+
+/** Frameworks whose site is served by proxying a long-running Node dev server. */
+export const NODE_FRAMEWORKS: readonly SiteFramework[] = ['nextjs', 'vite', 'node'];
+
+export function isNodeFramework(framework: SiteFramework): boolean {
+  return NODE_FRAMEWORKS.includes(framework);
+}
+
+/** Per-site Node dev-server (React/Vite/Next.js/Node) settings. */
+export interface SiteDevServerConfig {
+  enabled?: boolean;
+  /** Port the dev server listens on (nginx proxies the .test host to it). */
+  port?: number;
+  /** npm script to run (defaults to "dev"). */
+  script?: string;
+}
+
 export interface Site {
   name: string;
   hostname: string;
   root: string;
   doc_root: string;
-  framework: 'laravel' | 'wordpress' | 'generic';
+  framework: SiteFramework;
   /** Defaults to true when absent. */
   enabled?: boolean;
   /** Defaults to false when absent. */
@@ -207,10 +232,12 @@ export interface Site {
   /** Extra server_names beyond the primary hostname. */
   aliases?: string[];
   reverb?: SiteReverbConfig;
+  /** Node dev-server config (React/Vite/Next.js/Node sites). */
+  dev_server?: SiteDevServerConfig;
   /** Isolated PHP version for this site (empty/undefined = use the default). */
   php_version?: string;
   /** URL-rewrite template for the nginx `location /` block (default derived from framework). */
-  rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa';
+  rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa' | 'proxy';
   /** Raw extra nginx directives injected into the server block (advanced). */
   nginx_extra?: string;
 }

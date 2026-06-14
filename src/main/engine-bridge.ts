@@ -347,6 +347,16 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     return { sites, status: await getEngine().status() };
   });
   ipcMain.handle(
+    'stacklet:sites:createNode',
+    async (_e, name: string, framework: 'nextjs' | 'vite' | 'node') => {
+      const win = getWindow();
+      const sites = await getEngine().createNodeProject(name, framework, (message) => {
+        win?.webContents.send('stacklet:sites:createProgress', { name, message });
+      });
+      return { sites, status: await getEngine().status() };
+    },
+  );
+  ipcMain.handle(
     'stacklet:sites:linkExisting',
     async (_e, sourcePath: string, projectName?: string) => {
       const sites = await getEngine().linkExistingSite(sourcePath, projectName);
@@ -439,6 +449,20 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   });
   ipcMain.handle('stacklet:sites:restartReverb', async (_e, name: string) => {
     await getEngine().restartSiteReverb(name);
+    return { detail: getEngine().getSiteDetailByName(name) };
+  });
+  ipcMain.handle(
+    'stacklet:sites:setDevServer',
+    async (_e, name: string, patch: { enabled?: boolean; port?: number | null; script?: string }) => {
+      const sites = await getEngine().setSiteDevServer(name, patch);
+      return { sites, status: await getEngine().status() };
+    },
+  );
+  ipcMain.handle('stacklet:sites:devServerStatus', (_e, name: string) =>
+    getEngine().getSiteDevServerStatus(name),
+  );
+  ipcMain.handle('stacklet:sites:restartDevServer', async (_e, name: string) => {
+    await getEngine().restartSiteDevServer(name);
     return { detail: getEngine().getSiteDetailByName(name) };
   });
   ipcMain.handle('stacklet:sites:tinker', async (_e, name: string) =>

@@ -1,6 +1,6 @@
 ﻿import path from 'path';
 import { mergeNginxOptions } from '../../bundled/nginx-configure';
-import type { DevConfig, Site } from '../../config/types';
+import { isNodeFramework, type DevConfig, type Site } from '../../config/types';
 import { PHP_FASTCGI_PORT, PHP_XDEBUG_PORT } from '../service-ports';
 import {
   getFullChainCertPath,
@@ -71,6 +71,24 @@ function reverbProxyLocations(port: number): string {
   }`.trim();
 }
 
+/** Reverse-proxy `location /` to a Node dev server (HMR/WebSocket aware). */
+function devServerProxyLocation(config: DevConfig, port: number): string {
+  return `
+  location / {
+    ${clientMaxBodySizeDirective(config)}
+    proxy_pass http://127.0.0.1:${port};
+    proxy_http_version 1.1;
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header Upgrade $http_upgrade;
+    proxy_set_header Connection "upgrade";
+    proxy_read_timeout 86400;
+    proxy_buffering off;
+  }`.trim();
+}
+
 function fastcgiPhpLocation(config: DevConfig, phpPort: number, xdebug = false): string {
   const opts = mergeNginxOptions(config.services.nginx.options);
   const bodyLimit = clientMaxBodySizeDirective(config);
@@ -134,6 +152,26 @@ function serverBlock(
   // Advanced: user-supplied raw directives (custom rewrites, headers, locations).
   const extra = site.nginx_extra?.trim() ? `\n  ${site.nginx_extra.trim()}\n` : '';
 
+  // Node/React/Next.js sites are reverse-proxied to their dev server. With the
+  // dev server off, fall back to serving built static output (SPA-style).
+  let body: string;
+  if (isNodeFramework(site.framework)) {
+    const devPort = site.dev_server?.enabled ? site.dev_server.port : undefined;
+    body = devPort
+      ? devServerProxyLocation(config, devPort)
+      : `location / {
+    ${clientMaxBodySizeDirective(config)}
+    try_files $uri $uri/ /index.html;
+  }`.trim();
+  } else {
+    body = `${reverbBlock}location / {
+    ${clientMaxBodySizeDirective(config)}
+    ${rewriteTryFiles(site)}
+  }
+
+  ${fastcgiPhpLocation(config, phpPort, xdebug)}`.trim();
+  }
+
   return `
 server {
   ${listenDirectives(config)}
@@ -149,12 +187,7 @@ server {
   access_log ${accessLog};
   error_log  ${errorLog};
 ${extra}
-  ${reverbBlock}location / {
-    ${clientMaxBodySizeDirective(config)}
-    ${rewriteTryFiles(site)}
-  }
-
-  ${fastcgiPhpLocation(config, phpPort, xdebug)}
+  ${body}
 }
 `.trim();
 }

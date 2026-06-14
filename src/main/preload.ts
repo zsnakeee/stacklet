@@ -94,6 +94,8 @@ const stackletAPI: StackletAPI = {
   },
   sitesActions: {
     createLaravel: (name) => ipcRenderer.invoke('stacklet:sites:createLaravel', name),
+    createNode: (name, framework) =>
+      ipcRenderer.invoke('stacklet:sites:createNode', name, framework),
     linkExisting: (sourcePath, projectName) =>
       ipcRenderer.invoke('stacklet:sites:linkExisting', sourcePath, projectName),
     remove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
@@ -121,6 +123,8 @@ const stackletAPI: StackletAPI = {
     setPhpVersion: (name, version) =>
       ipcRenderer.invoke('stacklet:sites:setPhpVersion', name, version),
     setReverb: (name, patch) => ipcRenderer.invoke('stacklet:sites:setReverb', name, patch),
+    setDevServer: (name, patch) =>
+      ipcRenderer.invoke('stacklet:sites:setDevServer', name, patch),
   },
   site: {
     detail: (name) => ipcRenderer.invoke('stacklet:sites:detail', name),
@@ -130,6 +134,8 @@ const stackletAPI: StackletAPI = {
     reverbStatus: (name) => ipcRenderer.invoke('stacklet:sites:reverbStatus', name),
     applyReverbEnv: (name) => ipcRenderer.invoke('stacklet:sites:applyReverbEnv', name),
     restartReverb: (name) => ipcRenderer.invoke('stacklet:sites:restartReverb', name),
+    devServerStatus: (name) => ipcRenderer.invoke('stacklet:sites:devServerStatus', name),
+    restartDevServer: (name) => ipcRenderer.invoke('stacklet:sites:restartDevServer', name),
     tinker: (name) => ipcRenderer.invoke('stacklet:sites:tinker', name),
     terminal: (name) => ipcRenderer.invoke('stacklet:sites:terminal', name),
     share: (name) => ipcRenderer.invoke('stacklet:sites:share', name),

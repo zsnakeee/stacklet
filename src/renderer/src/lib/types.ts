@@ -77,6 +77,10 @@ export interface SiteDetail extends Site {
   aliases?: string[];
   defaultHostname: string;
   php_version?: string;
+  /** True for Node/React/Next.js sites (served by proxying a dev server). */
+  isNode?: boolean;
+  devServer?: { enabled?: boolean; port?: number; script?: string } | null;
+  devServerStatus?: { name: string; state: string; pid?: number; message?: string };
 }
 
 export interface VersionInfo {

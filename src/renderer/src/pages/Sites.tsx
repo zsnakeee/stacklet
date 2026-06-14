@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, useNavigate } from 'react-router-dom';
 import { Button, Empty, Field, IconButton, Input, Spinner } from '@/components/ui/primitives';
+import { Dropdown } from '@/components/ui/Dropdown';
 import { Modal } from '@/components/ui/Modal';
 import SpotlightCard from '@/components/SpotlightCard';
 import { Icon } from '@/components/Icon';
@@ -141,6 +142,9 @@ export function Sites() {
   const [cloneErr, setCloneErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState('');
+  const [nodeOpen, setNodeOpen] = useState(false);
+  const [nodeErr, setNodeErr] = useState<string | null>(null);
+  const [nodeFramework, setNodeFramework] = useState<'nextjs' | 'vite' | 'node'>('nextjs');
 
   const q = query.trim().toLowerCase();
   const visible = sites.filter((s) => matches(s, q));
@@ -180,6 +184,36 @@ export function Sites() {
           await stacklet.sitesActions.createLaravel(name);
           await refresh();
           setLaravelOpen(false);
+          navigate('/sites');
+        } finally {
+          off();
+          setCreating(false);
+        }
+      },
+    });
+  };
+
+  const submitNode = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const name = String(new FormData(e.currentTarget).get('name') ?? '');
+    const err = validateSiteName(name);
+    if (err) {
+      setNodeErr(err);
+      return;
+    }
+    setNodeErr(null);
+    setCreating(true);
+    setCreateMsg(t('sites.startingProgress'));
+    const off = stacklet.site.onCreateProgress((p) => setCreateMsg(p.message));
+    void runAction({
+      key: 'site-node',
+      label: 'New Node project',
+      global: true,
+      run: async () => {
+        try {
+          await stacklet.sitesActions.createNode(name, nodeFramework);
+          await refresh();
+          setNodeOpen(false);
           navigate('/sites');
         } finally {
           off();
@@ -237,6 +271,7 @@ export function Sites() {
         <Button variant="primary" onClick={() => setLaravelOpen(true)}>
           {t('sites.newLaravel')}
         </Button>
+        <Button onClick={() => setNodeOpen(true)}>New Node project</Button>
         <Button onClick={pickLinkDir}>{t('sites.addExisting')}</Button>
         <Button onClick={() => setCloneOpen(true)}>{t('sites.cloneGit')}</Button>
         <Input
@@ -295,6 +330,60 @@ export function Sites() {
             </Button>
           </div>
         </form>
+        )}
+      </Modal>
+
+      <Modal
+        open={nodeOpen}
+        onClose={() => {
+          if (!creating) setNodeOpen(false);
+        }}
+        title="New Node project"
+      >
+        {creating ? (
+          <div className="flex flex-col gap-3">
+            <div className="flex items-center gap-2 text-sm text-foreground">
+              <Spinner />
+              {t('sites.creatingProject')}
+            </div>
+            <pre className="max-h-44 overflow-auto rounded-lg border border-border bg-background/60 p-3 font-mono text-xs text-text-secondary">
+              {createMsg}
+            </pre>
+            <p className="text-xs text-text-muted">
+              Running the official scaffolder + npm install — this can take a minute.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={submitNode} className="flex flex-col gap-4">
+            <Field label="Framework">
+              <Dropdown
+                ariaLabel="Project framework"
+                value={nodeFramework}
+                options={[
+                  { value: 'nextjs', label: 'Next.js (create-next-app)' },
+                  { value: 'vite', label: 'React + Vite (TypeScript)' },
+                  { value: 'node', label: 'Plain Node (npm init)' },
+                ]}
+                onChange={(v) => setNodeFramework(v as 'nextjs' | 'vite' | 'node')}
+              />
+            </Field>
+            <Field label={t('sites.folderName')}>
+              <Input name="name" required placeholder="my-app" autoComplete="off" />
+            </Field>
+            <p className="text-xs text-text-muted">
+              Scaffolds under %LOCALAPPDATA%\stacklet\projects, then serves it at a .test HTTPS host by
+              proxying its dev server.
+            </p>
+            {nodeErr && <p className="text-xs text-danger">{nodeErr}</p>}
+            <div className="flex justify-end gap-2">
+              <Button type="button" onClick={() => setNodeOpen(false)}>
+                {t('common.cancel')}
+              </Button>
+              <Button type="submit" variant="primary">
+                {t('common.create')}
+              </Button>
+            </div>
+          </form>
         )}
       </Modal>
 
