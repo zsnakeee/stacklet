@@ -1,7 +1,47 @@
 import fs from 'fs';
 import path from 'path';
+import { spawn } from 'child_process';
 import { isNodeFramework, type Site } from '../../config/types';
 import { getLogsDir } from '../../shared/paths';
+
+/**
+ * Install dependencies if `node_modules` is missing, so the dev server can
+ * actually start on a freshly linked/cloned project. Output is appended to the
+ * site's dev-server log. Runs via the resolved Node's bundled npm (no shell).
+ */
+export function ensureNodeModules(site: Site, nodeDir: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (fs.existsSync(path.join(site.root, 'node_modules'))) {
+      resolve();
+      return;
+    }
+    const node = path.join(nodeDir, 'node.exe');
+    const npmCli = path.join(nodeDir, 'node_modules', 'npm', 'bin', 'npm-cli.js');
+    if (!fs.existsSync(node) || !fs.existsSync(npmCli)) {
+      resolve(); // can't install; let the start attempt surface a clearer error
+      return;
+    }
+    const log = path.join(getLogsDir(), 'sites', site.name, 'dev-server.stderr.log');
+    fs.mkdirSync(path.dirname(log), { recursive: true });
+    const out = fs.createWriteStream(log, { flags: 'a' });
+    out.write(`\n--- npm install (${new Date().toISOString()}) ---\n`);
+    const child = spawn(node, [npmCli, 'install', '--no-fund', '--no-audit'], {
+      cwd: site.root,
+      windowsHide: true,
+      stdio: ['ignore', out, out],
+    });
+    child.on('error', reject);
+    child.on('close', (code) => {
+      if (code === 0) resolve();
+      else
+        reject(
+          new Error(
+            `npm install failed for "${site.name}" (exit ${code ?? 'unknown'}). Open the dev-server log, or run npm install in the project, then try again.`,
+          ),
+        );
+    });
+  });
+}
 
 export interface DevServerSpawnSpec {
   /** node.exe to run. */

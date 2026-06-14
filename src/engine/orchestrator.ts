@@ -102,7 +102,8 @@ import {
   phpMyAdminConfigPath,
   resolvePhpMyAdminRoot,
 } from '../bundled/phpmyadmin-configure';
-import { getServicePortLabel, PHP_XDEBUG_PORT } from './service-ports';
+import { getServicePortLabel, PHP_FASTCGI_PORT, PHP_XDEBUG_PORT } from './service-ports';
+import { renderSingleSiteVhost } from './render/nginx';
 import {
   createLaravelProject,
   createNodeProject,
@@ -2042,16 +2043,33 @@ export class Orchestrator {
     return this.getSites();
   }
 
-  /** Open the generated web-server config (the file holding this site's vhost). */
+  /** Open a config file scoped to THIS site (not the combined global file). */
   openSiteWebConfig(name: string): { path: string } {
     const site = findSiteByName(this.sites, name);
     if (!site) throw new Error(`Site not found: ${name}`);
-    const configPath =
-      (this.config.general.web_server ?? 'nginx') === 'apache'
-        ? apacheSitesConfPath()
-        : path.join(getGeneratedDir(), 'nginx', 'stacklet-sites.conf');
-    openNginxConfInEditor(configPath);
-    return { path: configPath };
+    if ((this.config.general.web_server ?? 'nginx') === 'apache') {
+      const apachePath = apacheSitesConfPath();
+      openNginxConfInEditor(apachePath);
+      return { path: apachePath };
+    }
+    // Write a dedicated per-site nginx config and open it, so the user sees only
+    // this site's server block instead of the combined stacklet-sites.conf.
+    const dir = path.join(getGeneratedDir(), 'nginx', 'sites');
+    fs.mkdirSync(dir, { recursive: true });
+    const file = path.join(dir, `${site.name}.conf`);
+    const header =
+      `# Stacklet — nginx config for site "${site.name}" (auto-generated snapshot).\n` +
+      `# The live, served config is generated/nginx/stacklet-sites.conf. To customize\n` +
+      `# this site, use the "Extra nginx directives" box (it is injected into the block).\n\n`;
+    const block = renderSingleSiteVhost(
+      this.config,
+      site,
+      PHP_FASTCGI_PORT,
+      this.config.general.xdebug === true,
+    );
+    fs.writeFileSync(file, header + block + '\n', 'utf8');
+    openNginxConfInEditor(file);
+    return { path: file };
   }
 
   /** Isolate a site to a specific installed PHP version (null = default). */

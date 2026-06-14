@@ -35,6 +35,7 @@ export interface Site {
   favorite?: boolean;
   rewrite?: 'laravel' | 'wordpress' | 'static' | 'spa';
   nginx_extra?: string;
+  dev_server?: { enabled?: boolean; port?: number; script?: string };
 }
 
 export interface Status {

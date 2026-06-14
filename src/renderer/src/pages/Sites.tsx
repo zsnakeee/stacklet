@@ -27,6 +27,17 @@ function matches(site: Site, q: string): boolean {
   return `${site.name} ${site.hostname} ${site.framework}`.toLowerCase().includes(q);
 }
 
+const FRAMEWORK_LABELS: Record<string, string> = {
+  laravel: 'Laravel',
+  wordpress: 'WordPress',
+  nextjs: 'Next.js',
+  vite: 'React · Vite',
+  node: 'Node',
+  generic: 'Static',
+};
+const frameworkLabel = (f: string): string => FRAMEWORK_LABELS[f] ?? f;
+const NODE_FRAMEWORKS = new Set(['nextjs', 'vite', 'node']);
+
 function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => void }) {
   const { t } = useTranslation();
   const { runAction } = useAction();
@@ -43,9 +54,17 @@ function SiteCard({ site, onCopied }: { site: Site; onCopied: (name: string) => 
       <Link to={`/sites/${encodeURIComponent(site.name)}`} className="min-w-0">
         <div className="flex items-baseline justify-between gap-2">
           <span className="truncate font-semibold text-foreground">{site.hostname}</span>
-          <span className="shrink-0 text-xs text-text-muted">{site.framework}</span>
+          <span className="shrink-0 rounded-full border border-border px-2 py-0.5 text-[10px] font-medium text-text-secondary">
+            {frameworkLabel(site.framework)}
+          </span>
         </div>
         <p className="mt-1 truncate font-mono text-xs text-text-muted">{site.doc_root}</p>
+        {NODE_FRAMEWORKS.has(site.framework) && site.dev_server?.enabled && (
+          <p className="mt-1 flex items-center gap-1.5 text-[11px] text-text-muted">
+            <span className="size-1.5 rounded-full bg-success" />
+            dev server · port {site.dev_server.port ?? 'auto'}
+          </p>
+        )}
       </Link>
       {disabled && (
         <span className="absolute right-3 top-3 rounded-full border border-border px-2 py-0.5 text-[10px] text-text-muted">
