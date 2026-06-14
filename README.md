@@ -1,6 +1,6 @@
 # Stacklet
 
-> **Early development** — Stacklet is under active development (v0.1.0).
+> **Early development** — Stacklet is under active development (v0.11.0).
 > Expect bugs, incomplete features, and breaking changes.
 > Use at your own risk; not recommended for critical machines yet.
 
@@ -29,6 +29,15 @@ Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache*
 - **Windows only** (for now)
 - **Early preview** — feedback and [issue reports](https://github.com/zsnakeee/stacklet/issues) are welcome
 
+## Install
+
+Download the latest **`Stacklet-Setup-x.y.z.exe`** from the
+[releases page](https://github.com/ker00sama-dev/stacklet/releases/latest) and run it.
+
+Stacklet **auto-updates**: once installed, it checks GitHub for new releases and installs
+them silently in place (Settings → Updates lets you check/download manually). On first
+launch it offers to **import your projects from Laragon** or start fresh.
+
 ## Requirements
 
 - Windows 10/11
@@ -39,24 +48,29 @@ Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache*
 
 **UI**
 - Modern React UI (Vite + Tailwind) with **light/dark theme**, collapsible sidebar, dashboard, sites, services, logs, Mailpit inbox, and settings — runs in the tray.
-- **Multi-language** interface with a built-in language switcher (English + Arabic), including automatic **RTL** layout.
+- **Multi-language** interface (English + Arabic) with automatic **RTL** layout and a bundled Arabic font (fully offline); themed dropdowns; a **global progress bar** for every action.
+- **Herd-style tray menu** — app shortcuts, start/stop services with live status, PHP-version switch, open config files, settings/updates/quit.
+- **Auto-update** via GitHub Releases (silent in-place install) and a **first-run** "import from Laragon / start fresh" prompt.
 
 **Web servers & PHP**
 - **nginx _or_ Apache** — install both and switch in Settings (PHP served via FastCGI on both).
 - Multiple PHP versions; set a global default **or isolate a specific version per site** (herd-`isolate`-style — a dedicated php-cgi per isolated version).
 - **Xdebug on-demand** — XDEBUG-triggered requests are routed to an Xdebug-enabled PHP; everything else stays fast.
-- Per-service quick settings (php.ini, my.ini, nginx tuning), PHP extensions + PECL installer.
+- Per-service quick settings (php.ini, my.ini, nginx tuning), **searchable** PHP extensions, a **PECL installer** (redis, mongodb, imagick, swoole, …), and **IonCube Loader**.
+- **Per-site nginx URL rewrites** — Laravel/WordPress/SPA/static templates + custom directives, and open the generated config.
 
 **Services**
 - Bundled nginx, Apache, PHP, MySQL/MariaDB, PostgreSQL, Redis, **MongoDB**, **Mailpit**, Node.js, **Python**, phpMyAdmin — install/start/stop/switch versions.
-- **Mailpit** local mail catcher (SMTP `127.0.0.1:1025` + an in-app web inbox).
+- **Editable service ports** (Settings → Ports) for every service.
+- **Redis** settings (password, max memory, eviction policy, AOF) and **Mailpit** local mail catcher (SMTP `127.0.0.1:1025` + an in-app web inbox, with a how-to guide).
 - **Composer** one-click install (uses your active PHP).
 
 **Sites**
 - New Laravel app via `composer create-project` (with live progress), link an existing folder (served in place), or clone from Git.
+- **Migrate from Laragon** — bulk-import projects as sites and copy enabled PHP extensions (Settings → Migrate from Laragon; separate root + projects paths).
 - Auto-detect Laravel (`artisan`) and serve `public/` as docroot; **editable document root**.
-- `*.test` hostnames with local HTTPS via a trusted CA; **configurable TLD**.
-- Per-site actions: open in Explorer, **terminal**, **Tinker**, run artisan, **share online via ngrok**.
+- `*.test` hostnames with local HTTPS via a trusted CA; **configurable TLD**; a manageable **default site** for `http://127.0.0.1/` (dashboard or a chosen project).
+- Per-site actions: open in Explorer, **terminal** (with optional Cmder/Clink autocomplete), **Tinker**, run artisan, **share online via ngrok** (auto-installed, HTTPS, auto-configures Laravel TrustProxies).
 
 **Node.js**
 - Multiple Node versions through Services, plus **nvm-windows integration** — list/install/switch Node versions from Settings.
@@ -64,8 +78,9 @@ Stacklet is a Windows desktop app for PHP/Laravel developers: nginx **or Apache*
 
 **System**
 - PATH sync for terminal access to bundled tools (php, composer, node, python, mongod…).
-- **Movable data directory** and **customizable projects folder**.
-- Startup options: start minimized/maximized, autostart services, launch at Windows login.
+- **Movable data directory** (or point at an existing one) and **customizable projects folder**.
+- Startup options: start minimized, **keep running in tray on close** (or exit), autostart services, launch at Windows login.
+- All-service logs in the Logs tab (nginx/apache/php/mysql/redis/mongodb/mailpit) + PHP `error_log`.
 - Branded app + tray icon; global error logging to `…\stacklet\logs\app.log`.
 
 ## How Stacklet compares
@@ -93,6 +108,8 @@ so this is a best-effort snapshot (mid-2026) — corrections via [issues](https:
 | Composer / Laravel scaffolding | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Light / dark UI | ✅ | ✅ | 🟡 | ❌ | ❌ |
 | Multi-language UI (+ RTL) | ✅ | ❌ | 🟡 | ❌ | ❌ |
+| Import from Laragon | ✅ | ❌ | — | ❌ | ❌ |
+| Auto-update | ✅ | ✅ | 🟡 | ❌ | ❌ |
 | Open source | ✅ | ❌ | 🟡 | ✅ | ✅ |
 
 <sub>✅ built-in · 🟡 partial / via add-on · ❌ not available · 💲 paid tier</sub>
