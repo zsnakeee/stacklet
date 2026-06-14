@@ -298,6 +298,11 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     await getEngine().restartNginx();
     return getEngine().status();
   });
+  ipcMain.handle('stacklet:ports:get', () => getEngine().getServicePorts());
+  ipcMain.handle('stacklet:ports:set', async (_e, patch: Record<string, number>) => {
+    await getEngine().setServicePorts(patch);
+    return { ports: getEngine().getServicePorts(), status: await getEngine().status() };
+  });
   ipcMain.handle('stacklet:redis:settings', () => getEngine().getRedisSettings());
   ipcMain.handle(
     'stacklet:redis:saveSettings',
@@ -346,6 +351,18 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     async (_e, sourcePath: string, projectName?: string) => {
       const sites = await getEngine().linkExistingSite(sourcePath, projectName);
       return { sites, status: await getEngine().status() };
+    },
+  );
+  ipcMain.handle('stacklet:sites:laragonDir', () => getEngine().laragonProjectsDir());
+  ipcMain.handle('stacklet:sites:laragonRoot', () => getEngine().laragonRootDir());
+  ipcMain.handle(
+    'stacklet:sites:migrateLaragon',
+    async (_e, projectsDir: string, rootPath?: string) => {
+      const win = getWindow();
+      const result = await getEngine().migrateFromLaragon(projectsDir, rootPath, (message) => {
+        win?.webContents.send('stacklet:sites:migrateProgress', message);
+      });
+      return { ...result, status: await getEngine().status() };
     },
   );
   ipcMain.handle('stacklet:sites:cloneGit', async (_e, url: string, name?: string) => {
@@ -464,9 +481,12 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
   ipcMain.handle('stacklet:node:siteInfo', (_e, name: string) =>
     getEngine().getSiteNodeInfo(name),
   );
-  ipcMain.handle('stacklet:dialog:directory', async () => {
+  ipcMain.handle('stacklet:dialog:directory', async (_e, defaultPath?: string) => {
     const win = getWindow();
-    const opts = { properties: ['openDirectory'] as ('openDirectory')[] };
+    const opts = {
+      properties: ['openDirectory'] as ('openDirectory')[],
+      ...(defaultPath ? { defaultPath } : {}),
+    };
     const result = win
       ? await dialog.showOpenDialog(win, opts)
       : await dialog.showOpenDialog(opts);

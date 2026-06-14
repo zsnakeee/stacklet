@@ -48,6 +48,20 @@ export interface CmderInfo {
   initBat: string;
 }
 
+/** Editable listen ports for each service (Settings → Services → Ports). */
+export interface ServicePorts {
+  nginxHttp: number;
+  nginxSsl: number;
+  apacheHttp: number;
+  apacheSsl: number;
+  mysql: number;
+  postgres: number;
+  redis: number;
+  mailpitSmtp: number;
+  mailpitUi: number;
+  mongodb: number;
+}
+
 export interface StackletAPI {
   status: () => Promise<unknown>;
   statusLive: () => Promise<{
@@ -74,7 +88,7 @@ export interface StackletAPI {
   park: (directory: string) => Promise<unknown>;
   sitesRemove: (name: string) => Promise<unknown>;
   dialog: {
-    pickDirectory: () => Promise<string | null>;
+    pickDirectory: (defaultPath?: string) => Promise<string | null>;
     pickFile: (opts?: { name?: string; extensions?: string[] }) => Promise<string | null>;
   };
   service: {
@@ -121,6 +135,16 @@ export interface StackletAPI {
     openConf: (version?: string) => Promise<void>;
     restart: () => Promise<unknown>;
   };
+  ports: {
+    get: () => Promise<ServicePorts>;
+    set: (patch: Partial<ServicePorts>) => Promise<unknown>;
+  };
+  /** Actions for the tray popover window. */
+  tray: {
+    open: (route: string) => Promise<void>;
+    hide: () => Promise<void>;
+    quit: () => Promise<void>;
+  };
   redis: {
     getSettings: () => Promise<{
       port: number;
@@ -157,6 +181,17 @@ export interface StackletAPI {
     linkExisting: (sourcePath: string, projectName?: string) => Promise<unknown>;
     remove: (name: string) => Promise<unknown>;
     cloneGit: (url: string, name?: string) => Promise<unknown>;
+    /** Default Laragon projects (www) folder if installed (else ''). */
+    laragonDir: () => Promise<string>;
+    /** Default Laragon install root if installed (else ''). */
+    laragonRoot: () => Promise<string>;
+    /** Bulk-import each subfolder of projectsDir as a site; rootPath = Laragon install root for PHP config. */
+    migrateLaragon: (
+      projectsDir: string,
+      rootPath?: string,
+    ) => Promise<{ added: string[]; skipped: string[]; phpExtensions: string[] }>;
+    /** Subscribe to migration progress messages; returns an unsubscribe fn. */
+    onMigrateProgress: (callback: (message: string) => void) => () => void;
     setEnabled: (name: string, enabled: boolean) => Promise<unknown>;
     setFavorite: (name: string, favorite: boolean) => Promise<unknown>;
     setDomain: (name: string, domain: string | null, aliases: string[]) => Promise<unknown>;
@@ -223,6 +258,8 @@ export interface StackletAPI {
     maximize: () => void;
     close: () => void;
     onMaximized: (callback: (maximized: boolean) => void) => () => void;
+    /** Tray shortcuts navigate the renderer to a route. */
+    onNavigate: (callback: (route: string) => void) => () => void;
   };
   bootstrap: {
     onPhase: (callback: (phase: BootstrapPhase) => void) => () => void;

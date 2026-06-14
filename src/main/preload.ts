@@ -31,7 +31,8 @@ const stackletAPI: StackletAPI = {
   park: (directory) => ipcRenderer.invoke('stacklet:park', directory),
   sitesRemove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
   dialog: {
-    pickDirectory: () => ipcRenderer.invoke('stacklet:dialog:directory'),
+    pickDirectory: (defaultPath) =>
+      ipcRenderer.invoke('stacklet:dialog:directory', defaultPath),
     pickFile: (opts) => ipcRenderer.invoke('stacklet:dialog:file', opts),
   },
   service: {
@@ -76,6 +77,15 @@ const stackletAPI: StackletAPI = {
     openConf: (version) => ipcRenderer.invoke('stacklet:nginx:openConf', version),
     restart: () => ipcRenderer.invoke('stacklet:nginx:restart'),
   },
+  ports: {
+    get: () => ipcRenderer.invoke('stacklet:ports:get'),
+    set: (patch) => ipcRenderer.invoke('stacklet:ports:set', patch),
+  },
+  tray: {
+    open: (route) => ipcRenderer.invoke('stacklet:tray:open', route),
+    hide: () => ipcRenderer.invoke('stacklet:tray:hide'),
+    quit: () => ipcRenderer.invoke('stacklet:tray:quit'),
+  },
   redis: {
     getSettings: () => ipcRenderer.invoke('stacklet:redis:settings'),
     saveSettings: (patch) => ipcRenderer.invoke('stacklet:redis:saveSettings', patch),
@@ -88,6 +98,15 @@ const stackletAPI: StackletAPI = {
       ipcRenderer.invoke('stacklet:sites:linkExisting', sourcePath, projectName),
     remove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
     cloneGit: (url, name) => ipcRenderer.invoke('stacklet:sites:cloneGit', url, name),
+    laragonDir: () => ipcRenderer.invoke('stacklet:sites:laragonDir'),
+    laragonRoot: () => ipcRenderer.invoke('stacklet:sites:laragonRoot'),
+    migrateLaragon: (projectsDir, rootPath) =>
+      ipcRenderer.invoke('stacklet:sites:migrateLaragon', projectsDir, rootPath),
+    onMigrateProgress: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
+      ipcRenderer.on('stacklet:sites:migrateProgress', handler);
+      return () => ipcRenderer.removeListener('stacklet:sites:migrateProgress', handler);
+    },
     setEnabled: (name, enabled) =>
       ipcRenderer.invoke('stacklet:sites:setEnabled', name, enabled),
     setFavorite: (name, favorite) =>
@@ -150,6 +169,11 @@ const stackletAPI: StackletAPI = {
       const handler = (_e: Electron.IpcRendererEvent, maximized: boolean) => callback(maximized);
       ipcRenderer.on('stacklet:window:maximized', handler);
       return () => ipcRenderer.removeListener('stacklet:window:maximized', handler);
+    },
+    onNavigate: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, route: string) => callback(route);
+      ipcRenderer.on('stacklet:nav', handler);
+      return () => ipcRenderer.removeListener('stacklet:nav', handler);
     },
   },
   bootstrap: {

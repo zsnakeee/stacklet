@@ -32,6 +32,8 @@ interface ActionApi {
   runAction: (opts: RunActionOptions) => Promise<unknown>;
   isBusy: (key: string) => boolean;
   globalBusy: boolean;
+  /** True while ANY action (global or not) is in flight — drives the top progress bar. */
+  anyBusy: boolean;
 }
 
 const ActionContext = createContext<ActionApi | null>(null);
@@ -102,6 +104,7 @@ export function ActionProvider({ children }: { children: ReactNode }) {
       runAction,
       isBusy: (key: string) => busyKeys.has(key),
       globalBusy: globalCount > 0,
+      anyBusy: busyKeys.size > 0 || globalCount > 0,
     }),
     [runAction, busyKeys, globalCount],
   );

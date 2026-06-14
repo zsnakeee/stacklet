@@ -41,6 +41,7 @@ export default defineConfig({
       input: {
         index: path.resolve(rendererRoot, 'index.html'),
         log: path.resolve(rendererRoot, 'log.html'),
+        tray: path.resolve(rendererRoot, 'tray.html'),
       },
       // Manual vendor grouping (rolldown codeSplitting): keep the heavy globe and
       // the React runtime in stable, separate chunks from app code. `codeSplitting`

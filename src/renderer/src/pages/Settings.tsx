@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import type { CmderInfo, NgrokInfo, UpdateStatus } from '@shared/ipc';
+import type { CmderInfo, NgrokInfo, ServicePorts, UpdateStatus } from '@shared/ipc';
 import {
   Button,
   Empty,
@@ -138,6 +138,8 @@ export function Settings() {
       </Section>
 
       <UpdatesSection />
+
+      <LaragonMigrateSection />
 
       <Section title={t('settings.sections.paths')}>
         <dl className="flex flex-col">
@@ -485,6 +487,8 @@ export function Settings() {
           </p>
         )}
       </Section>
+
+      <PortsSection />
 
       <Section title={t('settings.sections.tools')}>
         <Hint>{t('settings.tools.hint')}</Hint>
@@ -1113,6 +1117,202 @@ function TerminalSection() {
         </Button>
       </div>
       {progress && <p className="mt-2 text-xs text-text-muted">{progress}</p>}
+    </Section>
+  );
+}
+
+/** Edit service listen ports. */
+const PORT_FIELDS: { key: keyof ServicePorts; label: string }[] = [
+  { key: 'nginxHttp', label: 'Nginx HTTP' },
+  { key: 'nginxSsl', label: 'Nginx HTTPS' },
+  { key: 'apacheHttp', label: 'Apache HTTP' },
+  { key: 'apacheSsl', label: 'Apache HTTPS' },
+  { key: 'mysql', label: 'MySQL / MariaDB' },
+  { key: 'postgres', label: 'PostgreSQL' },
+  { key: 'redis', label: 'Redis' },
+  { key: 'mailpitSmtp', label: 'Mailpit SMTP' },
+  { key: 'mailpitUi', label: 'Mailpit web UI' },
+  { key: 'mongodb', label: 'MongoDB' },
+];
+
+/** Import projects (and PHP extensions) from a Laragon install. */
+export function LaragonMigrateSection() {
+  const { runAction } = useAction();
+  const { refresh } = useStore();
+  const toast = useToast();
+  const [rootPath, setRootPath] = useState('');
+  const [projectsPath, setProjectsPath] = useState('');
+  const [msg, setMsg] = useState('');
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        setRootPath((await devmgr.sitesActions.laragonRoot()) || 'C:\\laragon');
+        setProjectsPath((await devmgr.sitesActions.laragonDir()) || '');
+      } catch {
+        // ignore
+      }
+    })();
+  }, []);
+
+  const pick = async (setter: (p: string) => void, current: string) => {
+    const dir = await devmgr.dialog.pickDirectory(current || undefined);
+    if (dir) setter(dir);
+  };
+
+  return (
+    <Section title="Migrate from Laragon">
+      <Hint>
+        Import your existing Laragon projects as Stacklet sites and copy the PHP extensions Laragon
+        had enabled. Set the Laragon install root (for PHP config) and the folder that holds your
+        projects — they can be different (e.g. <code>C:\laragon</code> and <code>D:\PublicServer</code>).
+      </Hint>
+      <div className="mt-3 flex flex-col gap-3">
+        <Field label="Laragon root path (PHP / config)">
+          <div className="flex items-center gap-2">
+            <Input
+              className="max-w-md"
+              value={rootPath}
+              onChange={(e) => setRootPath(e.target.value)}
+              placeholder="C:\laragon"
+            />
+            <Button size="sm" onClick={() => pick(setRootPath, rootPath)}>
+              Browse…
+            </Button>
+          </div>
+        </Field>
+        <Field label="Projects / app folder (sites)">
+          <div className="flex items-center gap-2">
+            <Input
+              className="max-w-md"
+              value={projectsPath}
+              onChange={(e) => setProjectsPath(e.target.value)}
+              placeholder="D:\PublicServer"
+            />
+            <Button size="sm" onClick={() => pick(setProjectsPath, projectsPath)}>
+              Browse…
+            </Button>
+          </div>
+        </Field>
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <Button
+          variant="primary"
+          disabled={!projectsPath.trim() || !!msg}
+          busy={!!msg}
+          onClick={() =>
+            runAction({
+              key: 'migrate-laragon',
+              label: 'Migrate from Laragon',
+              global: true,
+              successToast: false,
+              run: async () => {
+                setMsg('Starting migration…');
+                const off = devmgr.sitesActions.onMigrateProgress((m) => setMsg(m));
+                let res;
+                try {
+                  res = await devmgr.sitesActions.migrateLaragon(
+                    projectsPath.trim(),
+                    rootPath.trim() || undefined,
+                  );
+                } finally {
+                  off();
+                  setMsg('');
+                }
+                await refresh();
+                const ext = res.phpExtensions?.length
+                  ? ` · enabled ${res.phpExtensions.length} PHP extension${res.phpExtensions.length === 1 ? '' : 's'}`
+                  : '';
+                const summary =
+                  `Imported ${res.added.length} project${res.added.length === 1 ? '' : 's'}` +
+                  (res.skipped.length ? ` · skipped ${res.skipped.length}` : '') +
+                  ext +
+                  '.';
+                if (res.added.length || res.phpExtensions?.length) toast.success(summary);
+                else toast.info(res.skipped.length ? `Nothing new — ${summary}` : 'No projects found in that folder.');
+              },
+            })
+          }
+        >
+          Migrate
+        </Button>
+        {msg && (
+          <span className="text-xs text-text-muted" aria-live="polite">
+            {msg}
+          </span>
+        )}
+      </div>
+    </Section>
+  );
+}
+
+/** Manage the listen port of each service. */
+function PortsSection() {
+  const { runAction } = useAction();
+  const { refresh } = useStore();
+  const toast = useToast();
+  const [ports, setPorts] = useState<ServicePorts | null>(null);
+  const [edited, setEdited] = useState<Record<string, string>>({});
+
+  const load = async () => {
+    const p = await devmgr.ports.get();
+    setPorts(p);
+    setEdited(Object.fromEntries(Object.entries(p).map(([k, v]) => [k, String(v)])));
+  };
+
+  useEffect(() => {
+    void load();
+  }, []);
+
+  if (!ports) return null;
+
+  return (
+    <Section title="Ports">
+      <Hint>
+        Change the port each service listens on. Saving re-writes the configs and restarts any
+        running service so the new ports take effect.
+      </Hint>
+      <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {PORT_FIELDS.map((f) => (
+          <Field key={f.key} label={f.label} inline>
+            <Input
+              className="max-w-28"
+              inputMode="numeric"
+              value={edited[f.key] ?? ''}
+              onChange={(e) => setEdited((prev) => ({ ...prev, [f.key]: e.target.value }))}
+            />
+          </Field>
+        ))}
+      </div>
+      <div className="mt-4">
+        <Button
+          variant="primary"
+          onClick={() =>
+            runAction({
+              key: 'save-ports',
+              label: 'Save ports',
+              global: true,
+              run: async () => {
+                const patch: Partial<ServicePorts> = {};
+                for (const f of PORT_FIELDS) {
+                  const n = Number(edited[f.key]);
+                  if (Number.isFinite(n) && n > 0 && n !== ports[f.key]) patch[f.key] = n;
+                }
+                if (Object.keys(patch).length === 0) {
+                  toast.info('No port changes to save.');
+                  return;
+                }
+                await devmgr.ports.set(patch);
+                await load();
+                await refresh();
+                toast.success('Ports saved and services restarted.');
+              },
+            })
+          }
+        >
+          Save &amp; restart
+        </Button>
+      </div>
     </Section>
   );
 }

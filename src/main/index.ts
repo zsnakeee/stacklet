@@ -10,6 +10,12 @@ import {
   shutdownEngineOnQuit,
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
+import {
+  createTrayPopover,
+  destroyTrayPopover,
+  hideTrayPopover,
+  toggleTrayPopover,
+} from './tray-window';
 import { checkForUpdatesOnLaunch, registerUpdaterIpc } from './updater';
 import { getDataDir, migrateLegacyDataDir } from '../shared/paths';
 import { BRAND, logPrefix, readEnv } from '../shared/brand';
@@ -206,15 +212,58 @@ function getWindow(): BrowserWindow | null {
   return mainWindow;
 }
 
+/**
+ * Reliably surface the main window: recreate it if it was destroyed (the app
+ * keeps running in the tray, so a re-launch must be able to bring it back),
+ * un-hide/restore it, and force it to the foreground. Used by the
+ * second-instance handler and the tray so launching again always shows a window
+ * instead of silently doing nothing.
+ */
+function showMainWindow(): void {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    mainWindow = createWindow(readGeneralPrefs());
+    // Force-show even if "start minimized" is set — this is an explicit re-launch.
+    mainWindow.once('ready-to-show', () => mainWindow?.show());
+    return;
+  }
+  const win = mainWindow;
+  if (!win.isVisible()) win.show();
+  if (win.isMinimized()) win.restore();
+  // Briefly pin to top so it pops above other windows, then release.
+  win.setAlwaysOnTop(true);
+  win.show();
+  win.focus();
+  setTimeout(() => {
+    if (!win.isDestroyed()) win.setAlwaysOnTop(false);
+  }, 300);
+}
+
+/** IPC used by the tray popover window (separate renderer entry). */
+function registerTrayIpc(): void {
+  ipcMain.handle('stacklet:tray:open', (_e, route: string) => {
+    hideTrayPopover();
+    navigateTo(typeof route === 'string' && route ? route : '/');
+  });
+  ipcMain.handle('stacklet:tray:hide', () => hideTrayPopover());
+  ipcMain.handle('stacklet:tray:quit', () => app.quit());
+}
+
+/** Show the window and navigate the renderer to a route (used by tray shortcuts). */
+function navigateTo(route: string): void {
+  showMainWindow();
+  const send = () => mainWindow?.webContents.send('stacklet:nav', route);
+  if (mainWindow && mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once('did-finish-load', send);
+  } else {
+    send();
+  }
+}
+
 // A second launch was blocked by the single-instance lock above. Bring the
 // already-running window to the front instead of doing nothing (the user clicked
 // the icon expecting Stacklet to appear).
 app.on('second-instance', () => {
-  const win = getWindow();
-  if (!win) return;
-  if (!win.isVisible()) win.show();
-  if (win.isMinimized()) win.restore();
-  win.focus();
+  showMainWindow();
 });
 
 app.whenReady().then(() => {
@@ -225,13 +274,15 @@ app.whenReady().then(() => {
   registerEngineIpc(getWindow);
   registerWindowIpc(getWindow);
   registerUpdaterIpc(getWindow);
+  registerTrayIpc();
   try {
     app.setLoginItemSettings({ openAtLogin: prefs.launchOnLogin });
   } catch {
     // login-item registration is best-effort
   }
   mainWindow = createWindow(prefs);
-  createTray(getWindow);
+  createTrayPopover();
+  createTray(showMainWindow, navigateTo, toggleTrayPopover);
   // Paint the window first; engine init + autostart can block the main thread.
   mainWindow.webContents.once('did-finish-load', () => {
     void bootstrapEngineOnLaunch(getWindow);
@@ -257,6 +308,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   quitting = true;
   destroyTray();
+  destroyTrayPopover();
 
   void shutdownEngineOnQuit()
     .catch((err) => {

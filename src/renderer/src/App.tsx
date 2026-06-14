@@ -1,8 +1,10 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { AppBackground } from '@/components/shell/AppBackground';
+import { GlobalProgressBar } from '@/components/shell/GlobalProgressBar';
+import { Icon } from '@/components/Icon';
 import Preloader from '@/components/react-bits/preloader';
 import { TitleBar } from '@/components/shell/TitleBar';
 import { Sidebar } from '@/components/shell/Sidebar';
@@ -87,12 +89,85 @@ function BootErrorBanner({ message }: { message: string }) {
 }
 
 const SIDEBAR_KEY = 'stacklet-sidebar-collapsed';
+const ONBOARDED_KEY = 'stacklet-onboarded';
+
+/** First-run welcome: import from Laragon or start fresh (shown once). */
+function FirstRunOnboarding() {
+  const navigate = useNavigate();
+  const [show, setShow] = useState(() => {
+    try {
+      return localStorage.getItem(ONBOARDED_KEY) !== '1';
+    } catch {
+      return false;
+    }
+  });
+  if (!show) return null;
+  const done = (route?: string) => {
+    try {
+      localStorage.setItem(ONBOARDED_KEY, '1');
+    } catch {
+      // ignore
+    }
+    setShow(false);
+    if (route) navigate(route);
+  };
+  return (
+    <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-background px-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-10 flex flex-col items-center text-center">
+          <div className="text-3xl font-bold tracking-tight text-foreground">
+            Stack<span className="text-primary">let</span>
+          </div>
+          <p className="mt-2 text-sm text-text-muted">Let’s set up your local stack.</p>
+        </div>
+
+        <div className="flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={() => done('/settings')}
+            className="group rounded-2xl border border-border bg-surface/60 p-4 text-left transition-all hover:border-primary/50 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary transition-colors group-hover:bg-primary/25">
+                <Icon name="folder" size={18} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">Load from Laragon</div>
+                <div className="text-xs text-text-muted">Import your projects and PHP extensions.</div>
+              </div>
+            </div>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => done()}
+            className="group rounded-2xl border border-border bg-surface/60 p-4 text-left transition-all hover:border-border hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+          >
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-text-secondary transition-colors group-hover:text-foreground">
+                <Icon name="play" size={18} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">Start fresh</div>
+                <div className="text-xs text-text-muted">Begin empty and add sites yourself.</div>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <p className="mt-8 text-center text-[11px] text-text-muted">More import options coming soon.</p>
+      </div>
+    </div>
+  );
+}
 
 function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { status, bootError, autostart } = useStore();
   const { t } = useTranslation();
   useUpdateNotice();
+  useEffect(() => devmgr.window.onNavigate((route) => navigate(route)), [navigate]);
   const title = pageTitle(location.pathname, status, t);
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -162,6 +237,8 @@ function Layout() {
       )}
     >
     <div className="relative flex h-screen flex-col overflow-hidden bg-background">
+      <GlobalProgressBar />
+      <FirstRunOnboarding />
       <AppBackground />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
       <TitleBar />
