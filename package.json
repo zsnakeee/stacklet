@@ -137,7 +137,7 @@
       "uninstallerIcon": "build/icon.ico",
       "installerHeaderIcon": "build/icon.ico",
       "uninstallDisplayName": "Stacklet ${version}",
-      "artifactName": "${productName} Setup ${version}.${ext}"
+      "artifactName": "${productName}-Setup-${version}.${ext}"
     }
   }
 }
