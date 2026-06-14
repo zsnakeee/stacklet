@@ -279,6 +279,16 @@ server {
 `.trim();
 }
 
+/** Render just one site's `server { }` block (for a per-site config view). */
+export function renderSingleSiteVhost(
+  config: DevConfig,
+  site: Site,
+  phpPort = PHP_FASTCGI_PORT,
+  xdebug = false,
+): string {
+  return serverBlock(site, config, getFullChainCertPath(), getLeafKeyPath(), phpPort, xdebug);
+}
+
 export function renderNginxVhosts(
   config: DevConfig,
   sites: Site[],

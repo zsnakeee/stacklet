@@ -1,6 +1,6 @@
 import type { Site } from '../../config/types';
 import { ManagedProcess, type ServiceStatus } from '../services';
-import { buildDevServerSpawn, shouldRunDevServer } from './dev-server';
+import { buildDevServerSpawn, ensureNodeModules, shouldRunDevServer } from './dev-server';
 
 /** Resolves the Node bin directory (containing node.exe) for a site, or null. */
 export type NodeDirResolver = (site: Site) => Promise<string | null>;
@@ -91,6 +91,7 @@ export class SiteDevServerManager {
   }
 
   private async startSite(site: Site, port: number, nodeDir: string): Promise<void> {
+    await ensureNodeModules(site, nodeDir);
     const spawn = buildDevServerSpawn(site, port, nodeDir);
     const proc = new ManagedProcess(
       `dev:${site.name}`,

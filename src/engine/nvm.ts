@@ -6,7 +6,7 @@
  * the active one on PATH via the %NVM_SYMLINK% junction. We shell out to `nvm`
  * for mutations (install/use) and parse its text output for listings.
  */
-import { execFile } from 'child_process';
+import { execFile, execFileSync } from 'child_process';
 import { promisify } from 'util';
 import fs from 'fs';
 import os from 'os';
@@ -234,29 +234,61 @@ export function nvmVersionDir(version: string, home: string | null): string | nu
 export interface ResolvedNode {
   dir: string | null;
   version: string | null;
-  source: 'nvmrc' | 'bundled' | null;
+  source: 'nvmrc' | 'bundled' | 'global' | null;
+}
+
+/** Directory of the first `node.exe` on PATH (via where.exe), or null. */
+function findNodeDirOnPath(): string | null {
+  if (process.platform !== 'win32') return null;
+  try {
+    const out = execFileSync('where.exe', ['node'], { encoding: 'utf8', windowsHide: true });
+    const line = out
+      .split(/\r?\n/)
+      .map((l) => l.trim())
+      .find((l) => l.toLowerCase().endsWith('node.exe'));
+    return line && fs.existsSync(line) ? path.dirname(line) : null;
+  } catch {
+    return null;
+  }
 }
 
 /**
- * Resolve the Node bin dir for a site's terminal: a `.nvmrc`-pinned nvm version
- * when present and installed, else the bundled Node fallback.
+ * Resolve a usable Node bin dir for a site (terminal + dev server): a
+ * `.nvmrc`-pinned nvm version, else the bundled Node, else the active nvm
+ * version (NVM_SYMLINK), else any installed nvm version, else node on PATH.
  */
 export async function resolveSiteNodeBin(
   siteRoot: string,
   fallbackBinDir?: string | null,
 ): Promise<ResolvedNode> {
+  const hasNode = (dir: string | null): dir is string =>
+    !!dir && fs.existsSync(path.join(dir, 'node.exe'));
+
+  const status = await detectNvm();
   const spec = readNvmrc(siteRoot);
-  if (spec) {
-    const status = await detectNvm();
-    if (status.installed) {
-      const match = bestInstalledMatch(spec, status.installedVersions);
-      const dir = match ? nvmVersionDir(match, status.home) : null;
-      if (dir) return { dir, version: match, source: 'nvmrc' };
+
+  // 1. .nvmrc-pinned version via nvm
+  if (spec && status.installed) {
+    const match = bestInstalledMatch(spec, status.installedVersions);
+    const dir = match ? nvmVersionDir(match, status.home) : null;
+    if (hasNode(dir)) return { dir, version: match, source: 'nvmrc' };
+  }
+  // 2. bundled Node
+  const fallback = fallbackBinDir?.trim() || null;
+  if (hasNode(fallback)) return { dir: fallback, version: null, source: 'bundled' };
+  // 3. active nvm version (the NVM_SYMLINK junction on PATH)
+  const symlink = status.symlink ?? process.env['NVM_SYMLINK'] ?? null;
+  if (hasNode(symlink)) return { dir: symlink, version: status.current, source: 'global' };
+  // 4. any installed nvm version
+  if (status.installed) {
+    for (const v of status.installedVersions) {
+      const dir = nvmVersionDir(v, status.home);
+      if (hasNode(dir)) return { dir, version: v, source: 'global' };
     }
   }
-  const fallback = fallbackBinDir?.trim();
-  if (fallback && fs.existsSync(fallback)) {
-    return { dir: fallback, version: null, source: 'bundled' };
-  }
+  // 5. node on PATH
+  const onPath = findNodeDirOnPath();
+  if (onPath) return { dir: onPath, version: null, source: 'global' };
+
   return { dir: null, version: spec, source: null };
 }
