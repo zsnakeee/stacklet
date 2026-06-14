@@ -58,9 +58,19 @@ export function effectiveHostname(record: { name: string; domain?: string }): st
   return siteHostnameFromDirName(record.name);
 }
 
+const exists = (root: string, ...names: string[]): boolean =>
+  names.some((n) => fs.existsSync(path.join(root, n)));
+
 export function detectFramework(root: string): Site['framework'] {
+  // PHP frameworks first (a Laravel app also has package.json).
   if (fs.existsSync(path.join(root, 'artisan'))) return 'laravel';
   if (fs.existsSync(path.join(root, 'wp-config.php'))) return 'wordpress';
+  // Node-based projects (served by proxying their dev server).
+  if (fs.existsSync(path.join(root, 'package.json'))) {
+    if (exists(root, 'next.config.js', 'next.config.ts', 'next.config.mjs')) return 'nextjs';
+    if (exists(root, 'vite.config.js', 'vite.config.ts', 'vite.config.mjs')) return 'vite';
+    return 'node';
+  }
   return 'generic';
 }
 

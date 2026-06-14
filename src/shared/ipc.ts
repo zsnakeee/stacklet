@@ -178,6 +178,8 @@ export interface StackletAPI {
   };
   sitesActions: {
     createLaravel: (name: string) => Promise<unknown>;
+    /** Scaffold a new Node/React/Next.js project (uses official scaffolders). */
+    createNode: (name: string, framework: 'nextjs' | 'vite' | 'node') => Promise<unknown>;
     linkExisting: (sourcePath: string, projectName?: string) => Promise<unknown>;
     remove: (name: string) => Promise<unknown>;
     cloneGit: (url: string, name?: string) => Promise<unknown>;
@@ -206,6 +208,11 @@ export interface StackletAPI {
       name: string,
       patch: { enabled?: boolean; port?: number | null },
     ) => Promise<unknown>;
+    /** Configure a Node site's dev server (enable, port, npm script). */
+    setDevServer: (
+      name: string,
+      patch: { enabled?: boolean; port?: number | null; script?: string },
+    ) => Promise<unknown>;
   };
   site: {
     detail: (name: string) => Promise<unknown>;
@@ -215,6 +222,8 @@ export interface StackletAPI {
     reverbStatus: (name: string) => Promise<unknown>;
     applyReverbEnv: (name: string) => Promise<unknown>;
     restartReverb: (name: string) => Promise<unknown>;
+    devServerStatus: (name: string) => Promise<unknown>;
+    restartDevServer: (name: string) => Promise<unknown>;
     tinker: (name: string) => Promise<void>;
     terminal: (name: string) => Promise<void>;
     share: (name: string) => Promise<void>;

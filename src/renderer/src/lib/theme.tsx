@@ -10,7 +10,8 @@ import {
 
 export type Theme = 'light' | 'dark';
 
-const STORAGE_KEY = 'stacklet-theme';
+/** localStorage key for the persisted theme (shared across all app windows). */
+export const STORAGE_KEY = 'stacklet-theme';
 
 /** Read the persisted theme (default: dark). Safe to call before render. */
 export function getInitialTheme(): Theme {
@@ -47,6 +48,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
       // ignore persistence failure
     }
   }, [theme]);
+
+  // Sync theme across windows (e.g. the tray popover): another window writing
+  // the theme to localStorage fires a 'storage' event here, so the main window
+  // follows it live without a reload.
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && (e.newValue === 'light' || e.newValue === 'dark')) {
+        setThemeState(e.newValue);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+    return () => window.removeEventListener('storage', onStorage);
+  }, []);
 
   const setTheme = useCallback((t: Theme) => setThemeState(t), []);
   const toggle = useCallback(

@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import './globals.css';
 import { Icon } from '@/components/Icon';
 import { devmgr } from '@/lib/devmgr';
-import { getInitialTheme, applyThemeClass } from '@/lib/theme';
+import { getInitialTheme, applyThemeClass, STORAGE_KEY, type Theme } from '@/lib/theme';
 import { cn } from '@/lib/utils';
 
 interface Svc {
@@ -53,6 +53,7 @@ function TrayPopover() {
   const [phpVersions, setPhpVersions] = useState<string[]>([]);
   const [activePhp, setActivePhp] = useState('');
   const [busy, setBusy] = useState<string | null>(null);
+  const [theme, setTheme] = useState<Theme>(getInitialTheme);
 
   const refresh = useCallback(async () => {
     try {
@@ -62,8 +63,39 @@ function TrayPopover() {
     }
   }, []);
 
+  // Apply + follow the theme. It can change in the main window (storage event)
+  // or be re-read whenever the popover regains focus.
   useEffect(() => {
-    applyThemeClass(getInitialTheme());
+    applyThemeClass(theme);
+  }, [theme]);
+  useEffect(() => {
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === STORAGE_KEY && (e.newValue === 'light' || e.newValue === 'dark')) {
+        setTheme(e.newValue);
+      }
+    };
+    const onFocus = () => setTheme(getInitialTheme());
+    window.addEventListener('storage', onStorage);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, []);
+
+  const toggleTheme = () => {
+    setTheme((prev) => {
+      const next: Theme = prev === 'dark' ? 'light' : 'dark';
+      try {
+        localStorage.setItem(STORAGE_KEY, next);
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  useEffect(() => {
     void refresh();
     void (async () => {
       try {
@@ -111,15 +143,26 @@ function TrayPopover() {
           <span className="text-[11px] text-text-muted">{runningCount}/{services.length}</span>
         </div>
 
-        <button
-          type="button"
-          onClick={() => act('all', () => devmgr.stop())}
-          disabled={busy === 'all'}
-          className="flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-sm text-foreground transition-colors hover:bg-surface disabled:opacity-50"
-        >
-          <Icon name="stop" size={14} className="text-text-muted" />
-          <span>Stop all services</span>
-        </button>
+        <div className="flex gap-1.5 px-1 pb-1">
+          <button
+            type="button"
+            onClick={() => act('start-all', () => devmgr.start())}
+            disabled={busy === 'start-all'}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50"
+          >
+            <Icon name="play" size={13} className="text-success" />
+            <span>{busy === 'start-all' ? '…' : 'Start all'}</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => act('stop-all', () => devmgr.stop())}
+            disabled={busy === 'stop-all'}
+            className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-surface disabled:opacity-50"
+          >
+            <Icon name="stop" size={13} className="text-text-muted" />
+            <span>{busy === 'stop-all' ? '…' : 'Stop all'}</span>
+          </button>
+        </div>
 
         {services.map((s) => {
           const running = s.state === 'running';
@@ -178,7 +221,16 @@ function TrayPopover() {
         />
       </div>
 
-      <div className="flex items-center justify-end gap-1 border-t border-border px-2 py-1.5">
+      <div className="flex items-center justify-between border-t border-border px-2 py-1.5">
+        <button
+          type="button"
+          title={theme === 'dark' ? 'Switch to light theme' : 'Switch to dark theme'}
+          onClick={toggleTheme}
+          className="rounded-md p-1.5 text-text-muted transition-colors hover:bg-surface hover:text-foreground"
+        >
+          <Icon name={theme === 'dark' ? 'sun' : 'moon'} size={16} />
+        </button>
+        <div className="flex items-center gap-1">
         <button
           type="button"
           title="Settings"
@@ -203,6 +255,7 @@ function TrayPopover() {
         >
           <Icon name="dismiss" size={16} />
         </button>
+        </div>
       </div>
     </div>
   );

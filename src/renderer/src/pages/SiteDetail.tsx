@@ -432,8 +432,132 @@ export function SiteDetail() {
         </div>
       </Section>
 
+      {detail.isNode && <DevServerSection name={name} detail={detail} onSaved={load} />}
+
       <NginxRewriteSection name={name} detail={detail} onSaved={load} />
     </div>
+  );
+}
+
+/** Dev-server controls for Node/React/Next.js sites (proxied through .test HTTPS). */
+function DevServerSection({
+  name,
+  detail,
+  onSaved,
+}: {
+  name: string;
+  detail: SiteDetailData;
+  onSaved: () => Promise<void> | void;
+}) {
+  const { runAction } = useAction();
+  const { refresh } = useStore();
+  const ds = detail.devServer;
+  const enabled = Boolean(ds?.enabled);
+  const status = detail.devServerStatus?.state ?? 'stopped';
+  const [port, setPort] = useState(String(ds?.port ?? ''));
+  const [script, setScript] = useState(ds?.script ?? '');
+
+  useEffect(() => {
+    setPort(String(detail.devServer?.port ?? ''));
+    setScript(detail.devServer?.script ?? '');
+  }, [detail.devServer?.port, detail.devServer?.script]);
+
+  const apply = (patch: { enabled?: boolean; port?: number | null; script?: string }) =>
+    runAction({
+      key: `site-devserver-${name}`,
+      label: 'Save dev server',
+      global: true,
+      run: async () => {
+        await devmgr.sitesActions.setDevServer(name, patch);
+        await refresh();
+        await onSaved();
+      },
+    });
+
+  return (
+    <Section title="Dev server (Node / React / Next.js)">
+      <p className="text-sm text-text-muted">
+        nginx proxies <span className="font-mono">https://{detail.hostname}</span> to this project’s
+        dev server, with hot-reload (HMR/WebSocket) support.
+      </p>
+      <div className="mt-3 flex flex-col gap-3">
+        <Toggle
+          label="Run the dev server for this site"
+          checked={enabled}
+          onChange={(checked) => apply({ enabled: checked })}
+        />
+        <div className="flex items-center gap-3 text-sm">
+          <span className="text-text-muted">Status</span>
+          <span
+            className={
+              status === 'running'
+                ? 'font-medium text-success'
+                : status === 'error'
+                  ? 'font-medium text-danger'
+                  : 'text-text-secondary'
+            }
+          >
+            {status}
+            {detail.devServerStatus?.pid ? ` (pid ${detail.devServerStatus.pid})` : ''}
+          </span>
+          {enabled && (
+            <Button
+              size="sm"
+              onClick={() =>
+                runAction({
+                  key: `devserver-restart-${name}`,
+                  label: 'Restart dev server',
+                  successToast: false,
+                  run: async () => {
+                    await devmgr.site.restartDevServer(name);
+                    await onSaved();
+                  },
+                })
+              }
+            >
+              Restart
+            </Button>
+          )}
+        </div>
+        <div className="flex flex-wrap items-end gap-3">
+          <Field label="Port (5170–5199, blank = auto)">
+            <Input
+              value={port}
+              onChange={(e) => setPort(e.target.value)}
+              placeholder="auto"
+              className="max-w-[9rem]"
+              autoComplete="off"
+            />
+          </Field>
+          <Field label="npm script (blank = dev)">
+            <Input
+              value={script}
+              onChange={(e) => setScript(e.target.value)}
+              placeholder="dev"
+              className="max-w-[12rem]"
+              autoComplete="off"
+            />
+          </Field>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() =>
+              apply({
+                enabled: true,
+                port: port.trim() ? Number(port.trim()) : null,
+                script: script.trim(),
+              })
+            }
+          >
+            Save &amp; start
+          </Button>
+        </div>
+        <p className="text-xs text-text-muted">
+          The dev server runs <span className="font-mono">npm run {script.trim() || 'dev'}</span> (Next.js
+          and Vite get an explicit host/port). Requires a Node version installed via nvm.
+        </p>
+      </div>
+    </Section>
   );
 }
 

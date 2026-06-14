@@ -60,6 +60,88 @@ export async function createLaravelProject(
   return target;
 }
 
+export type NodeFrameworkKind = 'nextjs' | 'vite' | 'node';
+
+function writeMinimalNodeServer(target: string, name: string): void {
+  const index = `const http = require('http');
+const port = process.env.PORT || 3000;
+const host = process.env.HOST || '127.0.0.1';
+http
+  .createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+    res.end('<h1>${name}</h1><p>Stacklet Node app is running on port ' + port + '.</p>');
+  })
+  .listen(port, host, () => console.log('listening on http://' + host + ':' + port));
+`;
+  fs.writeFileSync(path.join(target, 'index.js'), index, 'utf8');
+  const pkgPath = path.join(target, 'package.json');
+  try {
+    const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8')) as { scripts?: Record<string, string> };
+    pkg.scripts = { ...(pkg.scripts ?? {}), dev: 'node index.js', start: 'node index.js' };
+    fs.writeFileSync(pkgPath, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
+  } catch {
+    // leave package.json as npm init produced it
+  }
+}
+
+/** Scaffold a new Node/React/Next.js project and return its folder. */
+export async function createNodeProject(
+  projectsDir: string,
+  projectName: string,
+  framework: NodeFrameworkKind,
+  onProgress?: CommandProgress,
+): Promise<string> {
+  const safeName = projectName.trim().replace(/[^\w.-]/g, '');
+  if (!safeName) throw new Error('Project name is required');
+
+  const target = path.join(projectsDir, safeName);
+  if (fs.existsSync(target)) throw new Error(`Folder already exists: ${target}`);
+  fs.mkdirSync(projectsDir, { recursive: true });
+
+  if (framework === 'nextjs') {
+    onProgress?.('Running create-next-app (this can take a minute)…');
+    await runCommand(
+      'npx',
+      [
+        '--yes',
+        'create-next-app@latest',
+        safeName,
+        '--ts',
+        '--eslint',
+        '--tailwind',
+        '--app',
+        '--src-dir',
+        '--no-turbopack',
+        '--use-npm',
+        '--import-alias',
+        '@/*',
+      ],
+      projectsDir,
+      onProgress,
+    );
+  } else if (framework === 'vite') {
+    onProgress?.('Scaffolding Vite (React + TypeScript)…');
+    await runCommand(
+      'npm',
+      ['create', 'vite@latest', safeName, '--', '--template', 'react-ts'],
+      projectsDir,
+      onProgress,
+    );
+    onProgress?.('Installing dependencies (npm install)…');
+    await runCommand('npm', ['install'], target, onProgress);
+  } else {
+    onProgress?.('Initializing Node project…');
+    fs.mkdirSync(target, { recursive: true });
+    await runCommand('npm', ['init', '-y'], target, onProgress);
+    writeMinimalNodeServer(target, safeName);
+  }
+
+  if (!fs.existsSync(target)) {
+    throw new Error(`Scaffolding did not create ${target}`);
+  }
+  return target;
+}
+
 /** Validate and return the project path (no copy — nginx serves the folder you pick). */
 export function resolveExistingProjectPath(
   sourcePath: string,
