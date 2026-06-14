@@ -139,6 +139,12 @@ export interface StackletAPI {
     get: () => Promise<ServicePorts>;
     set: (patch: Partial<ServicePorts>) => Promise<unknown>;
   };
+  /** Actions for the tray popover window. */
+  tray: {
+    open: (route: string) => Promise<void>;
+    hide: () => Promise<void>;
+    quit: () => Promise<void>;
+  };
   redis: {
     getSettings: () => Promise<{
       port: number;

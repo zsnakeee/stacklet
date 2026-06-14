@@ -10,6 +10,12 @@ import {
   shutdownEngineOnQuit,
 } from './engine-bridge';
 import { createTray, destroyTray } from './tray';
+import {
+  createTrayPopover,
+  destroyTrayPopover,
+  hideTrayPopover,
+  toggleTrayPopover,
+} from './tray-window';
 import { checkForUpdatesOnLaunch, registerUpdaterIpc } from './updater';
 import { getDataDir, migrateLegacyDataDir } from '../shared/paths';
 import { BRAND, logPrefix, readEnv } from '../shared/brand';
@@ -232,6 +238,16 @@ function showMainWindow(): void {
   }, 300);
 }
 
+/** IPC used by the tray popover window (separate renderer entry). */
+function registerTrayIpc(): void {
+  ipcMain.handle('stacklet:tray:open', (_e, route: string) => {
+    hideTrayPopover();
+    navigateTo(typeof route === 'string' && route ? route : '/');
+  });
+  ipcMain.handle('stacklet:tray:hide', () => hideTrayPopover());
+  ipcMain.handle('stacklet:tray:quit', () => app.quit());
+}
+
 /** Show the window and navigate the renderer to a route (used by tray shortcuts). */
 function navigateTo(route: string): void {
   showMainWindow();
@@ -258,13 +274,15 @@ app.whenReady().then(() => {
   registerEngineIpc(getWindow);
   registerWindowIpc(getWindow);
   registerUpdaterIpc(getWindow);
+  registerTrayIpc();
   try {
     app.setLoginItemSettings({ openAtLogin: prefs.launchOnLogin });
   } catch {
     // login-item registration is best-effort
   }
   mainWindow = createWindow(prefs);
-  createTray(showMainWindow, navigateTo);
+  createTrayPopover();
+  createTray(showMainWindow, navigateTo, toggleTrayPopover);
   // Paint the window first; engine init + autostart can block the main thread.
   mainWindow.webContents.once('did-finish-load', () => {
     void bootstrapEngineOnLaunch(getWindow);
@@ -290,6 +308,7 @@ app.on('before-quit', (event) => {
   event.preventDefault();
   quitting = true;
   destroyTray();
+  destroyTrayPopover();
 
   void shutdownEngineOnQuit()
     .catch((err) => {

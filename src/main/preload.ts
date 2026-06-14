@@ -81,6 +81,11 @@ const stackletAPI: StackletAPI = {
     get: () => ipcRenderer.invoke('stacklet:ports:get'),
     set: (patch) => ipcRenderer.invoke('stacklet:ports:set', patch),
   },
+  tray: {
+    open: (route) => ipcRenderer.invoke('stacklet:tray:open', route),
+    hide: () => ipcRenderer.invoke('stacklet:tray:hide'),
+    quit: () => ipcRenderer.invoke('stacklet:tray:quit'),
+  },
   redis: {
     getSettings: () => ipcRenderer.invoke('stacklet:redis:settings'),
     saveSettings: (patch) => ipcRenderer.invoke('stacklet:redis:saveSettings', patch),

@@ -4,6 +4,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { AppBackground } from '@/components/shell/AppBackground';
 import { GlobalProgressBar } from '@/components/shell/GlobalProgressBar';
+import { Icon } from '@/components/Icon';
 import Preloader from '@/components/react-bits/preloader';
 import { TitleBar } from '@/components/shell/TitleBar';
 import { Sidebar } from '@/components/shell/Sidebar';
@@ -111,35 +112,50 @@ function FirstRunOnboarding() {
     if (route) navigate(route);
   };
   return (
-    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-surface-raised p-6 shadow-2xl">
-        <div className="text-2xl font-bold tracking-tight text-foreground">
-          Welcome to Stack<span className="text-primary">let</span>
+    <div className="fixed inset-0 z-[120] flex flex-col items-center justify-center bg-background px-6">
+      <div className="w-full max-w-sm">
+        <div className="mb-10 flex flex-col items-center text-center">
+          <div className="text-3xl font-bold tracking-tight text-foreground">
+            Stack<span className="text-primary">let</span>
+          </div>
+          <p className="mt-2 text-sm text-text-muted">Let’s set up your local stack.</p>
         </div>
-        <p className="mt-1 text-sm text-text-secondary">How would you like to get started?</p>
-        <div className="mt-5 flex flex-col gap-3">
+
+        <div className="flex flex-col gap-3">
           <button
             type="button"
             onClick={() => done('/settings')}
-            className="rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left transition-colors hover:bg-primary/15"
+            className="group rounded-2xl border border-border bg-surface/60 p-4 text-left transition-all hover:border-primary/50 hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
           >
-            <div className="text-sm font-semibold text-foreground">Load from Laragon</div>
-            <div className="text-xs text-text-muted">
-              Import your existing projects and PHP extensions from a Laragon install.
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary/15 text-primary transition-colors group-hover:bg-primary/25">
+                <Icon name="folder" size={18} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">Load from Laragon</div>
+                <div className="text-xs text-text-muted">Import your projects and PHP extensions.</div>
+              </div>
             </div>
           </button>
+
           <button
             type="button"
             onClick={() => done()}
-            className="rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-background/40"
+            className="group rounded-2xl border border-border bg-surface/60 p-4 text-left transition-all hover:border-border hover:bg-surface focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
           >
-            <div className="text-sm font-semibold text-foreground">Start fresh</div>
-            <div className="text-xs text-text-muted">
-              Begin with an empty setup and add sites/services yourself.
+            <div className="flex items-center gap-3">
+              <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-surface-raised text-text-secondary transition-colors group-hover:text-foreground">
+                <Icon name="play" size={18} />
+              </span>
+              <div className="min-w-0">
+                <div className="text-sm font-semibold text-foreground">Start fresh</div>
+                <div className="text-xs text-text-muted">Begin empty and add sites yourself.</div>
+              </div>
             </div>
           </button>
         </div>
-        <p className="mt-4 text-center text-[11px] text-text-muted">More import options coming soon.</p>
+
+        <p className="mt-8 text-center text-[11px] text-text-muted">More import options coming soon.</p>
       </div>
     </div>
   );

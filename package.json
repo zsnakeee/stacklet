@@ -1,6 +1,6 @@
 {
   "name": "stacklet",
-  "version": "0.11.0",
+  "version": "0.12.0",
   "description": "Stacklet — local dev stack for Windows: nginx/Apache, PHP, MySQL/MariaDB, PostgreSQL, Redis, MongoDB, Mailpit, Node, Python, phpMyAdmin, and trusted .test HTTPS",
   "author": "zsnakeee",
   "repository": {
