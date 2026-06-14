@@ -1,6 +1,6 @@
 # Stacklet
 
-> **Early development** — Stacklet is under active development (v0.11.0).
+> **Early development** — Stacklet is under active development (v0.12.0).
 > Expect bugs, incomplete features, and breaking changes.
 > Use at your own risk; not recommended for critical machines yet.
 
@@ -49,7 +49,7 @@ launch it offers to **import your projects from Laragon** or start fresh.
 **UI**
 - Modern React UI (Vite + Tailwind) with **light/dark theme**, collapsible sidebar, dashboard, sites, services, logs, Mailpit inbox, and settings — runs in the tray.
 - **Multi-language** interface (English + Arabic) with automatic **RTL** layout and a bundled Arabic font (fully offline); themed dropdowns; a **global progress bar** for every action.
-- **Herd-style tray menu** — app shortcuts, start/stop services with live status, PHP-version switch, open config files, settings/updates/quit.
+- **Herd-style tray popover** — left-click the tray for a frameless quick panel: app shortcuts, live services with start/stop, PHP-version switch, open config files, and a settings/open/quit row.
 - **Auto-update** via GitHub Releases (silent in-place install) and a **first-run** "import from Laragon / start fresh" prompt.
 
 **Web servers & PHP**
