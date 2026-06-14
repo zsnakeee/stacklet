@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useRef, useState } from 'react';
-import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
+import { HashRouter, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { Trans, useTranslation } from 'react-i18next';
 import type { TFunction } from 'i18next';
 import { AppBackground } from '@/components/shell/AppBackground';
@@ -88,12 +88,70 @@ function BootErrorBanner({ message }: { message: string }) {
 }
 
 const SIDEBAR_KEY = 'stacklet-sidebar-collapsed';
+const ONBOARDED_KEY = 'stacklet-onboarded';
+
+/** First-run welcome: import from Laragon or start fresh (shown once). */
+function FirstRunOnboarding() {
+  const navigate = useNavigate();
+  const [show, setShow] = useState(() => {
+    try {
+      return localStorage.getItem(ONBOARDED_KEY) !== '1';
+    } catch {
+      return false;
+    }
+  });
+  if (!show) return null;
+  const done = (route?: string) => {
+    try {
+      localStorage.setItem(ONBOARDED_KEY, '1');
+    } catch {
+      // ignore
+    }
+    setShow(false);
+    if (route) navigate(route);
+  };
+  return (
+    <div className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-6 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl border border-border bg-surface-raised p-6 shadow-2xl">
+        <div className="text-2xl font-bold tracking-tight text-foreground">
+          Welcome to Stack<span className="text-primary">let</span>
+        </div>
+        <p className="mt-1 text-sm text-text-secondary">How would you like to get started?</p>
+        <div className="mt-5 flex flex-col gap-3">
+          <button
+            type="button"
+            onClick={() => done('/settings')}
+            className="rounded-xl border border-primary/40 bg-primary/10 px-4 py-3 text-left transition-colors hover:bg-primary/15"
+          >
+            <div className="text-sm font-semibold text-foreground">Load from Laragon</div>
+            <div className="text-xs text-text-muted">
+              Import your existing projects and PHP extensions from a Laragon install.
+            </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => done()}
+            className="rounded-xl border border-border bg-surface px-4 py-3 text-left transition-colors hover:bg-background/40"
+          >
+            <div className="text-sm font-semibold text-foreground">Start fresh</div>
+            <div className="text-xs text-text-muted">
+              Begin with an empty setup and add sites/services yourself.
+            </div>
+          </button>
+        </div>
+        <p className="mt-4 text-center text-[11px] text-text-muted">More import options coming soon.</p>
+      </div>
+    </div>
+  );
+}
 
 function Layout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { status, bootError, autostart } = useStore();
   const { t } = useTranslation();
   useUpdateNotice();
+  useEffect(() => devmgr.window.onNavigate((route) => navigate(route)), [navigate]);
   const title = pageTitle(location.pathname, status, t);
   const [collapsed, setCollapsed] = useState(() => {
     try {
@@ -164,6 +222,7 @@ function Layout() {
     >
     <div className="relative flex h-screen flex-col overflow-hidden bg-background">
       <GlobalProgressBar />
+      <FirstRunOnboarding />
       <AppBackground />
       <div className="relative z-10 flex min-h-0 flex-1 flex-col">
       <TitleBar />

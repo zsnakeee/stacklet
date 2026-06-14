@@ -175,11 +175,14 @@ export interface StackletAPI {
     linkExisting: (sourcePath: string, projectName?: string) => Promise<unknown>;
     remove: (name: string) => Promise<unknown>;
     cloneGit: (url: string, name?: string) => Promise<unknown>;
-    /** Default Laragon projects folder if installed (else ''). */
+    /** Default Laragon projects (www) folder if installed (else ''). */
     laragonDir: () => Promise<string>;
-    /** Bulk-import each subfolder of projectsDir as a site. */
+    /** Default Laragon install root if installed (else ''). */
+    laragonRoot: () => Promise<string>;
+    /** Bulk-import each subfolder of projectsDir as a site; rootPath = Laragon install root for PHP config. */
     migrateLaragon: (
       projectsDir: string,
+      rootPath?: string,
     ) => Promise<{ added: string[]; skipped: string[]; phpExtensions: string[] }>;
     /** Subscribe to migration progress messages; returns an unsubscribe fn. */
     onMigrateProgress: (callback: (message: string) => void) => () => void;
@@ -249,6 +252,8 @@ export interface StackletAPI {
     maximize: () => void;
     close: () => void;
     onMaximized: (callback: (maximized: boolean) => void) => () => void;
+    /** Tray shortcuts navigate the renderer to a route. */
+    onNavigate: (callback: (route: string) => void) => () => void;
   };
   bootstrap: {
     onPhase: (callback: (phase: BootstrapPhase) => void) => () => void;

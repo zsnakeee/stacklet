@@ -141,7 +141,6 @@ export function Sites() {
   const [cloneErr, setCloneErr] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState('');
-  const [migrateMsg, setMigrateMsg] = useState('');
 
   const q = query.trim().toLowerCase();
   const visible = sites.filter((s) => matches(s, q));
@@ -208,40 +207,6 @@ export function Sites() {
     });
   };
 
-  const migrateLaragon = () =>
-    runAction({
-      key: 'migrate-laragon',
-      label: 'Migrate from Laragon',
-      global: true,
-      successToast: false,
-      run: async () => {
-        const def = await stacklet.sitesActions.laragonDir();
-        const dir = await stacklet.dialog.pickDirectory(def || undefined);
-        if (!dir) return;
-        setMigrateMsg('Starting migration…');
-        const off = stacklet.sitesActions.onMigrateProgress((m) => setMigrateMsg(m));
-        let res;
-        try {
-          res = await stacklet.sitesActions.migrateLaragon(dir);
-        } finally {
-          off();
-          setMigrateMsg('');
-        }
-        await refresh();
-        navigate('/sites');
-        const ext = res.phpExtensions?.length
-          ? ` · enabled ${res.phpExtensions.length} PHP extension${res.phpExtensions.length === 1 ? '' : 's'}`
-          : '';
-        const msg =
-          `Imported ${res.added.length} project${res.added.length === 1 ? '' : 's'}` +
-          (res.skipped.length ? ` · skipped ${res.skipped.length}` : '') +
-          ext +
-          '.';
-        if (res.added.length || res.phpExtensions?.length) toast.success(msg);
-        else toast.info(res.skipped.length ? `Nothing new — ${msg}` : 'No projects found in that folder.');
-      },
-    });
-
   const submitClone = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const data = new FormData(e.currentTarget);
@@ -274,19 +239,6 @@ export function Sites() {
         </Button>
         <Button onClick={pickLinkDir}>{t('sites.addExisting')}</Button>
         <Button onClick={() => setCloneOpen(true)}>{t('sites.cloneGit')}</Button>
-        <Button
-          onClick={migrateLaragon}
-          busy={!!migrateMsg}
-          disabled={!!migrateMsg}
-          title="Import all projects from a Laragon (or any) www folder"
-        >
-          Migrate from Laragon
-        </Button>
-        {migrateMsg && (
-          <span className="text-xs text-text-muted" aria-live="polite">
-            {migrateMsg}
-          </span>
-        )}
         <Input
           type="search"
           placeholder={t('sites.searchPlaceholder')}

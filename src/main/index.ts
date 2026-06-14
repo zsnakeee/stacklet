@@ -232,6 +232,17 @@ function showMainWindow(): void {
   }, 300);
 }
 
+/** Show the window and navigate the renderer to a route (used by tray shortcuts). */
+function navigateTo(route: string): void {
+  showMainWindow();
+  const send = () => mainWindow?.webContents.send('stacklet:nav', route);
+  if (mainWindow && mainWindow.webContents.isLoading()) {
+    mainWindow.webContents.once('did-finish-load', send);
+  } else {
+    send();
+  }
+}
+
 // A second launch was blocked by the single-instance lock above. Bring the
 // already-running window to the front instead of doing nothing (the user clicked
 // the icon expecting Stacklet to appear).
@@ -253,7 +264,7 @@ app.whenReady().then(() => {
     // login-item registration is best-effort
   }
   mainWindow = createWindow(prefs);
-  createTray(showMainWindow);
+  createTray(showMainWindow, navigateTo);
   // Paint the window first; engine init + autostart can block the main thread.
   mainWindow.webContents.once('did-finish-load', () => {
     void bootstrapEngineOnLaunch(getWindow);

@@ -1821,6 +1821,7 @@ export class Orchestrator {
    */
   async migrateFromLaragon(
     projectsDir: string,
+    rootPath?: string,
     onProgress?: (message: string) => void,
   ): Promise<{ added: string[]; skipped: string[]; phpExtensions: string[]; sites: Site[] }> {
     const dir = path.resolve(projectsDir);
@@ -1862,7 +1863,7 @@ export class Orchestrator {
     onProgress?.('Importing PHP extensions from Laragon…');
     let phpExtensions: string[] = [];
     try {
-      phpExtensions = this.importLaragonPhpExtensions();
+      phpExtensions = this.importLaragonPhpExtensions(rootPath);
     } catch {
       phpExtensions = [];
     }
@@ -1881,8 +1882,9 @@ export class Orchestrator {
    * ones in Stacklet's active PHP (where the DLL exists). Returns the names
    * newly enabled. Can't copy PHP binaries — Stacklet manages its own builds.
    */
-  private importLaragonPhpExtensions(): string[] {
-    const phpRoot = 'C:\\laragon\\bin\\php';
+  private importLaragonPhpExtensions(rootPath?: string): string[] {
+    const root = (rootPath && rootPath.trim()) || 'C:\\laragon';
+    const phpRoot = path.join(root, 'bin', 'php');
     if (!fs.existsSync(phpRoot)) return [];
     // Pick the newest Laragon PHP version dir that has a php.ini.
     const iniPath = fs
@@ -1921,12 +1923,17 @@ export class Orchestrator {
     return enabled;
   }
 
-  /** Default Laragon projects folder if Laragon is installed (else empty). */
+  /** Default Laragon projects (www) folder if Laragon is installed (else empty). */
   laragonProjectsDir(): string {
     for (const candidate of ['C:\\laragon\\www', 'C:\\laragon']) {
       if (fs.existsSync(candidate)) return candidate;
     }
     return '';
+  }
+
+  /** Default Laragon install root if present (used to read PHP config/extensions). */
+  laragonRootDir(): string {
+    return fs.existsSync('C:\\laragon') ? 'C:\\laragon' : '';
   }
 
   async removeSite(name: string): Promise<Site[]> {

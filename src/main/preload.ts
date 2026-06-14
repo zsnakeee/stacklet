@@ -94,8 +94,9 @@ const stackletAPI: StackletAPI = {
     remove: (name) => ipcRenderer.invoke('stacklet:sites:remove', name),
     cloneGit: (url, name) => ipcRenderer.invoke('stacklet:sites:cloneGit', url, name),
     laragonDir: () => ipcRenderer.invoke('stacklet:sites:laragonDir'),
-    migrateLaragon: (projectsDir) =>
-      ipcRenderer.invoke('stacklet:sites:migrateLaragon', projectsDir),
+    laragonRoot: () => ipcRenderer.invoke('stacklet:sites:laragonRoot'),
+    migrateLaragon: (projectsDir, rootPath) =>
+      ipcRenderer.invoke('stacklet:sites:migrateLaragon', projectsDir, rootPath),
     onMigrateProgress: (callback) => {
       const handler = (_e: Electron.IpcRendererEvent, message: string) => callback(message);
       ipcRenderer.on('stacklet:sites:migrateProgress', handler);
@@ -163,6 +164,11 @@ const stackletAPI: StackletAPI = {
       const handler = (_e: Electron.IpcRendererEvent, maximized: boolean) => callback(maximized);
       ipcRenderer.on('stacklet:window:maximized', handler);
       return () => ipcRenderer.removeListener('stacklet:window:maximized', handler);
+    },
+    onNavigate: (callback) => {
+      const handler = (_e: Electron.IpcRendererEvent, route: string) => callback(route);
+      ipcRenderer.on('stacklet:nav', handler);
+      return () => ipcRenderer.removeListener('stacklet:nav', handler);
     },
   },
   bootstrap: {

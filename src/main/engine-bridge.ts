@@ -354,13 +354,17 @@ export function registerEngineIpc(getWindow: () => BrowserWindow | null): void {
     },
   );
   ipcMain.handle('stacklet:sites:laragonDir', () => getEngine().laragonProjectsDir());
-  ipcMain.handle('stacklet:sites:migrateLaragon', async (_e, projectsDir: string) => {
-    const win = getWindow();
-    const result = await getEngine().migrateFromLaragon(projectsDir, (message) => {
-      win?.webContents.send('stacklet:sites:migrateProgress', message);
-    });
-    return { ...result, status: await getEngine().status() };
-  });
+  ipcMain.handle('stacklet:sites:laragonRoot', () => getEngine().laragonRootDir());
+  ipcMain.handle(
+    'stacklet:sites:migrateLaragon',
+    async (_e, projectsDir: string, rootPath?: string) => {
+      const win = getWindow();
+      const result = await getEngine().migrateFromLaragon(projectsDir, rootPath, (message) => {
+        win?.webContents.send('stacklet:sites:migrateProgress', message);
+      });
+      return { ...result, status: await getEngine().status() };
+    },
+  );
   ipcMain.handle('stacklet:sites:cloneGit', async (_e, url: string, name?: string) => {
     const sites = await getEngine().cloneGitSite(url, name);
     return { sites, status: await getEngine().status() };
